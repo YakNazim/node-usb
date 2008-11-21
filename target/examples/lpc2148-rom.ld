@@ -173,9 +173,13 @@ SECTIONS
 		*(.glue_7t)						/* all .glue_7t sections (no idea what these are) */
 		_etext = .;						/* define a global symbol _etext just after the last code byte */
 	} >flash							/* put all the above into FLASH */
-	
 
-	
+        .usbdma :
+        {
+           *(.usbdma)
+           . = ALIGN(4);
+        } >ram_usb_dma
+
 
 	.data :								/* collect all initialized .data sections that go into RAM  */ 
 	{

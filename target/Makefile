@@ -24,7 +24,7 @@ TAR		= tar
 CFLAGS  = -I./ -I../ -c -W -Wall -Os -g -DDEBUG -D$(TARGET) $(LPC2378_PORT) -mcpu=arm7tdmi
 ARFLAGS = -rcs
 
-LIBSRCS = usbhw_lpc.c usbcontrol.c usbstdreq.c usbinit.c
+LIBSRCS = usbhw_lpc.c usbcontrol.c usbstdreq.c usbinit.c usbisoc.c
 LIBOBJS = $(LIBSRCS:.c=.o)
 
 all: depend lib examples
