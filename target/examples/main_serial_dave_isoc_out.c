@@ -496,8 +496,9 @@ void magicDMA(void) {
 	
 	//set DDP pointer for endpoint so it knows where first DD is located, manual section 13.1
 	//set index of isoc DDP to point to start DD
-	udcaHeadArray[EP2IDX(ISOC_OUT_EP)] = dmaDescriptorArray[0];
-	
+	//udcaHeadArray[EP2IDX(ISOC_OUT_EP)] = dmaDescriptorArray[0];
+	USBSetHeadDDForDMA(ISOC_OUT_EP, udcaHeadArray, dmaDescriptorArray[0]);
+
 	
 	DBG("First dma log output\n");
 	logdd();
@@ -687,7 +688,8 @@ int main(void)
 				}
 				USBSetupDMADescriptor(dmaDescriptorArray[i], NULL, 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray );
 				
-				udcaHeadArray[EP2IDX(ISOC_OUT_EP)] = dmaDescriptorArray[0];
+				//udcaHeadArray[EP2IDX(ISOC_OUT_EP)] = dmaDescriptorArray[0];
+				USBSetHeadDDForDMA(ISOC_OUT_EP, udcaHeadArray, dmaDescriptorArray[0]);
 			}
 			
 			USBEnableDMAForEndpoint(ISOC_OUT_EP);

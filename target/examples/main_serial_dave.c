@@ -450,8 +450,8 @@ char toHex(int x) {
 #define ISOC_DATA_BUFFER_SIZE (1024*6)
 
 __attribute__ ((section (".usbdma"), aligned(128))) volatile U32* udcaHeadArray[32];
-__attribute__ ((section (".usbdma"), aligned(128))) U32 isocFrameArray[NUM_ISOC_FRAMES];
 __attribute__ ((section (".usbdma"), aligned(128))) volatile U32 dmaDescriptorArray[NUM_DMA_DESCRIPTORS][5];
+__attribute__ ((section (".usbdma"), aligned(128))) U32 isocFrameArray[NUM_ISOC_FRAMES];
 __attribute__ ((section (".usbdma"), aligned(128))) U8 isocDataBuffer[ISOC_DATA_BUFFER_SIZE];
 
 U16 isocFrameNumber = 1;
@@ -479,12 +479,8 @@ void magicDMA(void) {
 	
 	//set DDP pointer for endpoint so it knows where first DD is located, manual section 13.1
 	//set index of isoc DDP to point to start DD
-	udcaHeadArray[EP2IDX(ISOC_IN_EP)] = dmaDescriptorArray[0];
-	
-	/*
-	DBG("First dma log output\n");
-	logdd();
-	*/
+	//udcaHeadArray[EP2IDX(ISOC_IN_EP)] = dmaDescriptorArray[0];
+	USBSetHeadDDForDMA(ISOC_IN_EP, udcaHeadArray, dmaDescriptorArray[0]);
 	
 	//enable dma for endpoint
 	USBEnableDMAForEndpoint(ISOC_IN_EP);
@@ -661,7 +657,7 @@ int main(void)
 			}
 			USBSetupDMADescriptor(dmaDescriptorArray[i], NULL, 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray);
 
-			udcaHeadArray[EP2IDX(ISOC_IN_EP)] = dmaDescriptorArray[0];
+			USBSetHeadDDForDMA(ISOC_IN_EP, udcaHeadArray, dmaDescriptorArray[0]);
 			
 			USBEnableDMAForEndpoint(ISOC_IN_EP);
 		}
