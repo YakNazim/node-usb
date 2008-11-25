@@ -685,7 +685,7 @@ int main(void)
 				for(i = 0; i < NUM_DMA_DESCRIPTORS - 1; i++ ) {
 					USBSetupDMADescriptor(dmaDescriptorArray[i], dmaDescriptorArray[(i+1)], 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray );	
 				}
-				USBSetupDMADescriptor(dmaDescriptorArray[i], dmaDescriptorArray[(i+1)], 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray );
+				USBSetupDMADescriptor(dmaDescriptorArray[i], NULL, 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray );
 				
 				udcaHeadArray[EP2IDX(ISOC_OUT_EP)] = dmaDescriptorArray[0];
 			}

@@ -220,6 +220,7 @@ U8 isConnected = 0;
  */
 static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData)
 {
+	/*
 	switch (pSetup->bRequest) {
 
 	// set line coding
@@ -250,6 +251,7 @@ DBG("SET_CONTROL_LINE_STATE %X\n", pSetup->wValue);
 	default:
 		return FALSE;
 	}
+	*/
 	isConnected = 1;
 
 	return TRUE;
@@ -599,7 +601,7 @@ int main(void)
 	VCOM_init();
 
 	
-
+	magicDMA();
 	
 	DBG("Starting USB communication\n");
 
@@ -617,7 +619,7 @@ int main(void)
 	
 	enableIRQ();
 
-	magicDMA();
+	
 	
 	// connect to bus
 	USBHwConnect(TRUE);
@@ -630,6 +632,7 @@ int main(void)
 
 	//logdd();
 	
+	int qq = 0;
 	// echo any character received (do USB stuff in interrupt)
 	while (1) {
 		c = VCOM_getchar();
@@ -645,7 +648,7 @@ int main(void)
 			
 		//DBG("srcBuff[1] = 0x%X\n", srcBuff[1]);
 
-		if ( ((dmaDescriptorArray[NUM_DMA_DESCRIPTORS-1][3] >> 1) & 0x0F ) == 2 ) {
+		if (qq >= 10 && ((dmaDescriptorArray[NUM_DMA_DESCRIPTORS-1][3] >> 1) & 0x0F ) == 2 ) {
 			//normal completion
 			
 			USBDisableDMAForEndpoint(ISOC_IN_EP);
@@ -656,7 +659,7 @@ int main(void)
 			for (i = 0; i < NUM_DMA_DESCRIPTORS - 1; i++) {
 				USBSetupDMADescriptor(dmaDescriptorArray[i], dmaDescriptorArray[(i+1)], 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray);
 			}
-			USBSetupDMADescriptor(dmaDescriptorArray[i], dmaDescriptorArray[(i+1)], 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray);
+			USBSetupDMADescriptor(dmaDescriptorArray[i], NULL, 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray);
 
 			udcaHeadArray[EP2IDX(ISOC_IN_EP)] = dmaDescriptorArray[0];
 			
@@ -665,6 +668,7 @@ int main(void)
 		
 		x++;
 		if (x == 400000) {
+			qq++;
 			
 			IOSET0 = (1<<11);
 			//turn on led
