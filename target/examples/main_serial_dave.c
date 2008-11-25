@@ -74,7 +74,6 @@
 #define DEBUG_LED_ON(x)     IOCLR0 = (1 << x);
 #define DEBUG_LED_OFF(x)    IOSET0 = (1 << x);
 
-
 #define BAUD_RATE	115200
 
 #define INT_IN_EP		0x81
@@ -82,18 +81,24 @@
 #define ISOC_OUT_EP     0x06
 #define ISOC_IN_EP      0x83
 
-
 #define MAX_PACKET_SIZE	1023
 
 #define LE_WORD(x)		((x)&0xFF),((x)>>8)
 
-// CDC definitions
-#define CS_INTERFACE			0x24
-#define CS_ENDPOINT				0x25
 
-#define	SET_LINE_CODING			0x20
-#define	GET_LINE_CODING			0x21
-#define	SET_CONTROL_LINE_STATE	0x22
+
+#define NUM_ISOC_FRAMES 4
+#define BYTES_PER_ISOC_FRAME 1023
+#define NUM_DMA_DESCRIPTORS 6
+#define ISOC_DATA_BUFFER_SIZE (1024*6)
+
+__attribute__ ((section (".usbdma"), aligned(128))) volatile U32* udcaHeadArray[32];
+__attribute__ ((section (".usbdma"), aligned(128))) volatile U32 dmaDescriptorArray[NUM_DMA_DESCRIPTORS][5];
+__attribute__ ((section (".usbdma"), aligned(128))) U32 isocFrameArray[NUM_ISOC_FRAMES];
+__attribute__ ((section (".usbdma"), aligned(128))) U8 isocDataBuffer[ISOC_DATA_BUFFER_SIZE];
+
+U16 isocFrameNumber = 1;
+U8 isConnected = 0;
 
 #define	INT_VECT_NUM	0
 
@@ -107,17 +112,9 @@ typedef struct {
 	U8		bDataBits;
 } TLineCoding;
 
-static TLineCoding LineCoding = {115200, 0, 0, 8};
-static U8 abBulkBuf[64];
+//static U8 abBulkBuf[64];
 static U8 abClassReqData[8];
-static volatile BOOL fBulkInBusy;
-static volatile BOOL fChainDone;
 
-static U8 txdata[VCOM_FIFO_SIZE];
-static U8 rxdata[VCOM_FIFO_SIZE];
-
-static fifo_t txfifo;
-static fifo_t rxfifo;
 
 // forward declaration of interrupt handler
 /*static void USBIntHandler(void) __attribute__ ((interrupt(IRQ)));*/
@@ -208,9 +205,6 @@ static const U8 abDescriptors[] = {
 
 
 
-
-U8 isConnected = 0;
-
 /**
 	Local function to handle the USB-CDC class requests
 		
@@ -220,82 +214,7 @@ U8 isConnected = 0;
  */
 static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData)
 {
-	/*
-	switch (pSetup->bRequest) {
-
-	// set line coding
-	case SET_LINE_CODING:
-DBG("SET_LINE_CODING\n");
-		memcpy((U8 *)&LineCoding, *ppbData, 7);
-		*piLen = 7;
-DBG("dwDTERate=%u, bCharFormat=%u, bParityType=%u, bDataBits=%u\n",
-	LineCoding.dwDTERate,
-	LineCoding.bCharFormat,
-	LineCoding.bParityType,
-	LineCoding.bDataBits);
-		break;
-
-	// get line coding
-	case GET_LINE_CODING:
-DBG("GET_LINE_CODING\n");
-		*ppbData = (U8 *)&LineCoding;
-		*piLen = 7;
-		break;
-
-	// set control line state
-	case SET_CONTROL_LINE_STATE:
-		// bit0 = DTR, bit = RTS
-DBG("SET_CONTROL_LINE_STATE %X\n", pSetup->wValue);
-		break;
-
-	default:
-		return FALSE;
-	}
-	*/
-	isConnected = 1;
-
 	return TRUE;
-}
-
-
-/**
-	Initialises the VCOM port.
-	Call this function before using VCOM_putchar or VCOM_getchar
- */
-void VCOM_init(void)
-{
-	fifo_init(&txfifo, txdata);
-	fifo_init(&rxfifo, rxdata);
-	fBulkInBusy = FALSE;
-	fChainDone = TRUE;
-}
-
-
-/**
-	Writes one character to VCOM port
-	
-	@param [in] c character to write
-	@returns character written, or EOF if character could not be written
- */
-
-int VCOM_putchar(int c)
-{
-	return fifo_put(&txfifo, c) ? c : EOF;
-}
-
-
-
-/**
-	Reads one character from VCOM port
-	
-	@returns character read, or EOF if character could not be read
- */
-
-int VCOM_getchar(void)
-{
-	U8 c;
-	
-	return fifo_get(&rxfifo, &c) ? c : EOF;
 }
 
 
@@ -426,7 +345,17 @@ void USBFrameHandler(U16 wFrame)
 static void USBDevIntHandler(U8 bDevStatus)
 {
 	if ((bDevStatus & DEV_STATUS_RESET) != 0) {
-		fBulkInBusy = FALSE;
+	}
+	
+	//FIXME not sure if this is the right way to detect being connected???
+	switch(bDevStatus ) {
+	case DEV_STATUS_CONNECT:
+		isConnected= 1;
+		break;
+	case DEV_STATUS_RESET:
+	case DEV_STATUS_SUSPEND:
+		isConnected= 0;
+		break;
 	}
 }
 
@@ -442,28 +371,14 @@ char toHex(int x) {
 
 
 
-#define EP2IDX(bEP) ((((bEP)&0xF)<<1)|(((bEP)&0x80)>>7))
 
-#define NUM_ISOC_FRAMES 4
-#define BYTES_PER_ISOC_FRAME 1023
-#define NUM_DMA_DESCRIPTORS 6
-#define ISOC_DATA_BUFFER_SIZE (1024*6)
 
-__attribute__ ((section (".usbdma"), aligned(128))) volatile U32* udcaHeadArray[32];
-__attribute__ ((section (".usbdma"), aligned(128))) volatile U32 dmaDescriptorArray[NUM_DMA_DESCRIPTORS][5];
-__attribute__ ((section (".usbdma"), aligned(128))) U32 isocFrameArray[NUM_ISOC_FRAMES];
-__attribute__ ((section (".usbdma"), aligned(128))) U8 isocDataBuffer[ISOC_DATA_BUFFER_SIZE];
-
-U16 isocFrameNumber = 1;
 
 void magicDMA(void) {
 	int i;
 	//allocate source data usb ram
 	
-	//populate source datw with all 'A's
-	for(i = 0; i < ISOC_DATA_BUFFER_SIZE; i++ ) {
-		isocDataBuffer[i] = 'A';
-	}
+
 	
 	USBInitializeISOCFrameArray(isocFrameArray, NUM_ISOC_FRAMES, isocFrameNumber, BYTES_PER_ISOC_FRAME);
 	isocFrameNumber += NUM_ISOC_FRAMES;
@@ -585,17 +500,11 @@ int main(void)
 	
 	//USBHwRegisterEPIntHandler(ISOC_OUT_EP, IsocOut);
 	
-	
-	
 	// register frame handler
 	//USBHwRegisterFrameHandler(USBFrameHandler);
 	
 	// register device event handler
 	USBHwRegisterDevIntHandler(USBDevIntHandler);
-
-	// initialise VCOM
-	VCOM_init();
-
 	
 	magicDMA();
 	
@@ -615,8 +524,6 @@ int main(void)
 	
 	enableIRQ();
 
-	
-	
 	// connect to bus
 	USBHwConnect(TRUE);
 	
@@ -625,23 +532,16 @@ int main(void)
 	c = EOF;
 	
 	
-
+	//populate source datw with all 'A's
+	for(i = 0; i < ISOC_DATA_BUFFER_SIZE; i++ ) {
+		isocDataBuffer[i] = 'A';
+	}
 	//logdd();
 	
 	int qq = 0;
 	// echo any character received (do USB stuff in interrupt)
 	while (1) {
-		c = VCOM_getchar();
-		if (c != EOF) {
-			// show on console
-			if ((c == 9) || (c == 10) || (c == 13) || ((c >= 32) && (c <= 126))) {
-				DBG("%c", c);
-			} else {
-				DBG(".");
-			}
-			//VCOM_putchar(c);
-		}
-			
+
 		//DBG("srcBuff[1] = 0x%X\n", srcBuff[1]);
 
 		if (qq >= 10 && ((dmaDescriptorArray[NUM_DMA_DESCRIPTORS-1][3] >> 1) & 0x0F ) == 2 ) {
@@ -667,14 +567,11 @@ int main(void)
 			qq++;
 			
 			IOSET0 = (1<<11);
-			//turn on led
-			
+			//turn on led	
 			if( ch > 'z' ) {
 				ch = 'a';
 			}
-			//VCOM_putchar(ch);
-			//DBG("%c", ch);
-			//DBG("\r\n");
+
 		    ch++;
 		    
 		    logdd();
@@ -683,7 +580,6 @@ int main(void)
 			//turn off led
 			x = 0;
 		}
-
 	}
 
 	return 0;
