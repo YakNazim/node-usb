@@ -47,7 +47,6 @@
 
 #include <string.h>			// memcpy
 
-#include "usbisoc.h"
 
 #include "type.h"
 #include "debug.h"
@@ -58,6 +57,9 @@
 #ifdef LPC23xx
 #include "lpc23xx.h"
 #endif
+
+#include "usbisoc.h"
+
 
 #include "armVIC.h"
 
@@ -369,7 +371,7 @@ char hexch(const unsigned char x) {
 }
 
 
-
+/*
 static void SendIsocIn()
 {
 	U8 tempBuff[1];
@@ -378,7 +380,7 @@ static void SendIsocIn()
 	// send over USB
 	USBHwEPWrite(ISOC_IN_EP, tempBuff, 1);
 }
-
+*/
 /**
 	USB frame interrupt handler
 	
@@ -392,7 +394,7 @@ static void SendIsocIn()
  */
 
 char tempBuff[MAX_PACKET_SIZE + 1];
-static void USBFrameHandler(U16 wFrame)
+void USBFrameHandler(U16 wFrame)
 {
 	/*
 	int i;

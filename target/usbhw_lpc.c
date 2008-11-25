@@ -624,7 +624,10 @@ BOOL USBHwInit(void)
     // init debug leds
     DEBUG_LED_INIT(8);
     DEBUG_LED_INIT(9);
-    DEBUG_LED_INIT(10);
+    DEBUG_LED_INIT(10);//LED GPIO line on the Olimex 2148
+    DEBUG_LED_INIT(11);//LED GPIO line on the Olimex 2148
+    DEBUG_LED_INIT(21);
+    DEBUG_LED_INIT(22);
 
     return TRUE;
 }
