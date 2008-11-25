@@ -467,7 +467,7 @@ void magicDMA(void) {
 	for(i = 0; i < NUM_DMA_DESCRIPTORS - 1; i++ ) {
 		USBSetupDMADescriptor(dmaDescriptorArray[i], dmaDescriptorArray[(i+1)], 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray );	
 	}
-	USBSetupDMADescriptor(dmaDescriptorArray[i], dmaDescriptorArray[(i+1)], 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray );
+	USBSetupDMADescriptor(dmaDescriptorArray[i], NULL, 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray );
 	
 	//Set UDCA head register to point to start of usb ram
 	USBInitializeUSBDMA(udcaHeadArray);
@@ -477,9 +477,10 @@ void magicDMA(void) {
 	//set index of isoc DDP to point to start DD
 	udcaHeadArray[EP2IDX(ISOC_IN_EP)] = dmaDescriptorArray[0];
 	
-	
+	/*
 	DBG("First dma log output\n");
 	logdd();
+	*/
 	
 	//enable dma for endpoint
 	USBEnableDMAForEndpoint(ISOC_IN_EP);
