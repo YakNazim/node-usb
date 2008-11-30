@@ -69,6 +69,8 @@ __attribute__ ((section (".usbdma"), aligned(128))) U8 isocDataBuffer[ISOC_DATA_
 
 U16 isocFrameNumber = 1;
 U8 isConnectedFlag = 0;
+int qq = 0;
+U8 bDevStat = 0;
 
 #define	INT_VECT_NUM	0
 
@@ -83,7 +85,7 @@ static U8 abClassReqData[8];
 /*static void USBIntHandler(void) __attribute__ ((interrupt(IRQ)));*/
 static void USBIntHandler(void) __attribute__ ((interrupt(IRQ), naked));
 /*__attribute__ ((interrupt("IRQ")));*/
-
+void resetDMATransfer(void);
 
 static const U8 abDescriptors[] = {
 
@@ -138,7 +140,7 @@ static const U8 abDescriptors[] = {
 	ISOC_IN_EP,				    // bEndpointAddress
 	0x0D,					    // bmAttributes = isoc, syncronous, data endpoint
 	LE_WORD(MAX_PACKET_SIZE),	// wMaxPacketSize
-	0x01,						// bInterval	
+	0x09,						// bInterval	
 	
 	// string descriptors
 	0x04,
@@ -230,6 +232,8 @@ void USBIntHandler(void)
 {
 	 ISR_ENTRY(); 
 	USBHwISR();
+	//newDDRequestInterupt();
+	
 	VICVectAddr = 0x00;    // dummy write to VIC to signal end of ISR
 	ISR_EXIT();
 }
@@ -257,10 +261,20 @@ char hexch(const unsigned char x) {
 
  */
 
+int cc = 0;
+int didInit =0;
 void USBFrameHandler(U16 wFrame)
 {
-
-	
+	if( cc < 8000 ) {
+		cc++;
+	}
+	if ( cc >= 8000 && ((((dmaDescriptorArray[NUM_DMA_DESCRIPTORS-1][3] >> 1) & 0x0F ) == 2) || ! didInit)) {
+		//normal completion
+		if( ! didInit ) {
+			didInit = 1;
+		}
+		resetDMATransfer();
+	}	
 }
 
 
@@ -273,6 +287,8 @@ static void USBDevIntHandler(U8 bDevStatus)
 {
 	if ((bDevStatus & DEV_STATUS_RESET) != 0) {
 	}
+	
+	bDevStat = bDevStatus;
 	
 	//FIXME not sure if this is the right way to detect being connected???
 	switch(bDevStatus ) {
@@ -297,26 +313,25 @@ char toHex(int x) {
 }
 
 
-void setupDMA(void) {
+
+
+void resetDMATransfer(void) {
 	int i;
+	USBDisableDMAForEndpoint(ISOC_IN_EP);
+
 	USBInitializeISOCFrameArray(isocFrameArray, NUM_ISOC_FRAMES, isocFrameNumber, BYTES_PER_ISOC_FRAME);
 	isocFrameNumber += NUM_ISOC_FRAMES;
-	
-	for(i = 0; i < NUM_DMA_DESCRIPTORS - 1; i++ ) {
-		USBSetupDMADescriptor(dmaDescriptorArray[i], dmaDescriptorArray[(i+1)], 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray );	
-	}
-	USBSetupDMADescriptor(dmaDescriptorArray[i], NULL, 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray );
-	
-	//Set UDCA head register to point to start of usb ram
-	USBInitializeUSBDMA(udcaHeadArray);
 
+	for (i = 0; i < NUM_DMA_DESCRIPTORS - 1; i++) {
+		USBSetupDMADescriptor(dmaDescriptorArray[i], dmaDescriptorArray[(i+1)], 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray);
+	}
+	USBSetupDMADescriptor(dmaDescriptorArray[i], NULL, 1, MAX_PACKET_SIZE, NUM_ISOC_FRAMES, isocDataBuffer, isocFrameArray);
+	
 	//set DDP pointer for endpoint so it knows where first DD is located, manual section 13.1
 	//set index of isoc DDP to point to start DD
-	//udcaHeadArray[EP2IDX(ISOC_IN_EP)] = dmaDescriptorArray[0];
 	USBSetHeadDDForDMA(ISOC_IN_EP, udcaHeadArray, dmaDescriptorArray[0]);
-	
-	//enable dma for endpoint
-	USBEnableDMAForEndpoint(ISOC_IN_EP);	
+
+	USBEnableDMAForEndpoint(ISOC_IN_EP);
 }
 
 void logdd(void) {
@@ -388,60 +403,69 @@ void newDDRequestInterupt(void) {
 
 	if (USBDMAIntSt & (1<<0)) {
 		//End of transfer interupt
-		
+		DBG("Ap");
 		if (USBEoTIntSt & (1<<epOutNumber)) {
 			//This endpoint had an end of transfer
-			
+			DBG("a");
 			//Clear the interupt
-			USBEoTIntClr = (1<<epOutNumber);
+			//USBEoTIntClr = (1<<epOutNumber);
 		}
 		
 		if (USBEoTIntSt & (1<<epInNumber)) {
 			//This endpoint had an end of transfer
-			
+			DBG("b");
 			//Clear the interupt
-			USBEoTIntClr = (1<<epInNumber);
+			//USBEoTIntClr = (1<<epInNumber);
 		}
 		
+		USBEoTIntClr = 0xFFFFFFFF;
 	}
 
 	if (USBDMAIntSt & (1<<1)) {
+		DBG("Xp");
 		//New DD Request Interupt
 		
 		if (USBNDDRIntSt & (1<<epOutNumber)) {
+			DBG("a");
 			//This endpoint had an end of transfer
 
 			//Clear the interupt
-			USBNDDRIntClr = (1<<epOutNumber);
+			//USBNDDRIntClr = (1<<epOutNumber);
 		}
 
 		if (USBNDDRIntSt & (1<<epInNumber)) {
 			//This endpoint had an end of transfer
+			DBG("b");
 
 			//Clear the interupt
-			USBNDDRIntClr = (1<<epInNumber);
+			//USBNDDRIntClr = (1<<epInNumber);
 		}
+		
+		
+		USBNDDRIntClr = 0xFFFFFFFF;
 	}
 
 	if (USBDMAIntSt & (1<<2)) {
 		//System Error Interupt
-		
+		DBG("Zp");
 		if (USBSysErrIntSt & (1<<epOutNumber)) {
 			//This endpoint had an end of transfer
 
 			//Clear the interupt
-			USBSysErrIntClr = (1<<epOutNumber);
+			//USBSysErrIntClr = (1<<epOutNumber);
 		}
 
 		if (USBSysErrIntSt & (1<<epInNumber)) {
 			//This endpoint had an end of transfer
 
 			//Clear the interupt
-			USBSysErrIntClr = (1<<epInNumber);
+			//USBSysErrIntClr = (1<<epInNumber);
 		}
+		USBSysErrIntClr = 0xFFFFFFFF;
 	}
 
 }
+
 
 /*************************************************************************
 	main
@@ -479,12 +503,13 @@ int main(void)
 	//USBHwRegisterEPIntHandler(ISOC_OUT_EP, IsocOut);
 	
 	// register frame handler
-	//USBHwRegisterFrameHandler(USBFrameHandler);
+	USBHwRegisterFrameHandler(USBFrameHandler);
 	
 	// register device event handler
 	USBHwRegisterDevIntHandler(USBDevIntHandler);
 	
-	setupDMA();
+	USBInitializeUSBDMA(udcaHeadArray);
+	//resetDMATransfer();
 	
 	DBG("Starting USB communication\n");
 
@@ -518,15 +543,16 @@ int main(void)
 	}
 	//logdd();
 	
-	int qq = 0;
+	int cnt = 0;
+	const int interval = 100000;
 	// echo any character received (do USB stuff in interrupt)
 	while (1) {
 
 		//DBG("srcBuff[1] = 0x%X\n", srcBuff[1]);
-
+/*
 		if (qq >= 10 && ((dmaDescriptorArray[NUM_DMA_DESCRIPTORS-1][3] >> 1) & 0x0F ) == 2 ) {
 			//normal completion
-			
+			cnt++;
 			USBDisableDMAForEndpoint(ISOC_IN_EP);
 			
 			USBInitializeISOCFrameArray(isocFrameArray, NUM_ISOC_FRAMES, isocFrameNumber, BYTES_PER_ISOC_FRAME);
@@ -542,8 +568,11 @@ int main(void)
 			USBEnableDMAForEndpoint(ISOC_IN_EP);
 		}
 		
+		*/
+		
 		x++;
-		if (x == 400000) {
+		
+		if (x == interval) {
 			qq++;
 			
 			IOSET0 = (1<<11);
@@ -554,8 +583,8 @@ int main(void)
 
 		    ch++;
 		    
-		    logdd();
-		} else if (x >= 800000) {
+		    //logdd();
+		} else if (x >= (interval*2)) {
 			IOCLR0 = (1<<11);
 			//turn off led
 			x = 0;

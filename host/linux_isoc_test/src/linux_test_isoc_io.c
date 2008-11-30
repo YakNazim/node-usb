@@ -184,11 +184,13 @@ void writeURB(int fd, struct usbdevfs_urb *myOutURB, char *stringBuff, void *req
 
 struct usbdevfs_urb *myOutURB = NULL;
 struct usbdevfs_urb *myOutURB2 = NULL;
-#define URB_ARR_COUNT 16
+//#define URB_ARR_COUNT 16
+#define URB_ARR_COUNT 1
 struct usbdevfs_urb *myOutURBArray[URB_ARR_COUNT];
 int urbIdArray[URB_ARR_COUNT];
 
-int packetCount = 32;
+int packetCount = 1;
+//int packetCount = 32;
 int startFrame = 0;
 
 
@@ -495,6 +497,7 @@ int main(void) {
 
 			timeDelta = time(NULL) - startTime;
 			if (timeDelta > 0) {
+				printf("Total bytes transfered: %d\n", totalIsocBytesReceived);
 				long bytesPerSecond = totalIsocBytesReceived / timeDelta;
 				printf("Bytes per second is %d\n", bytesPerSecond);
 			}
