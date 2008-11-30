@@ -1,0 +1,57 @@
+#
+# The following commands will be executed on
+# reset (because of run_and_init in the config-file)
+# - wait for target halt
+# - erase memory
+# - flash content of file main.bin into target-memory
+# - shutdown openocd
+#
+# created by Martin Thomas
+# http://www.siwawi.arubi.uni-kl.de/avr_projects/arm_projects
+# based on information from Dominic Rath
+#
+halt
+arm7_9 dcc_downloads enable
+wait_halt
+sleep 10
+poll
+
+# Force into supervisor mode
+reg cpsr 0x13
+# Set the MEMMAP reg to point to flash (avoids problems while trying to flash)
+mww 0xE01FC040 1
+
+
+
+mdh 0x0 100
+flash probe 0
+# erase first bank only:
+flash erase_sector 0 0 26
+mdh 0x0 100
+#flash write 0 scripts/lpc2148_freertos.bin 0x0
+#flash write 0 /drives/sdd1/Incoming/lpc2148_freertos.bin 0x0
+#flash write 0 /drives/sdd1/Incoming/main.bin 0x0
+#flash write_binary 0 /drives/sdd1/Incoming/imucalmain.bin 0x0
+#flash write_binary 0 /home/paradox/psas/freertos/imucalibrationmotorcontrol/imucalmain.bin 0x0
+#flash write_binary 0 /home/paradox/freertos/main.bin 0x0
+#flash write_binary 0 /home/paradox/Desktop/lpc2148test/test.hex 0x0 
+#flash write 0 scripts/main.bin 0x0
+#s
+#flash write_image trunk/target/examples/serial.hex 0x0
+#flash write_image trunk/target/examples/serial_dave.hex 0x0
+#flash write_image /home/paradox/school/CS506_Project_LPCUSB/lpcusb_target/examples/serial_dave.hex 0x0
+#flash write_image /home/paradox/school/CS506_Project_LPCUSB/lpcusb_target_dma/examples/serial_dave.hex 0x0
+#
+flash write_image isoc_dma_sample.hex 0x0
+#
+#flash write_image /home/paradox/school/CS506_Project_LPCUSB/lpcusb_target_dma/examples/serial_dave_isoc_out.hex 0x0
+#flash write_image /home/paradox/psas/freertos/imucalibrationmotorcontrol/imucalmain.bin 0x0
+#
+mdh 0x0 100
+soft_reset_halt
+#reset run
+sleep 3
+resume
+sleep 10
+#shutdown
+

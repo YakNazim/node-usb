@@ -25,32 +25,9 @@
 	THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-/*
-	Minimal implementation of a USB serial port, using the CDC class.
-	This example application simply echoes everything it receives right back
-	to the host.
-
-	Windows:
-	Extract the usbser.sys file from .cab file in C:\WINDOWS\Driver Cache\i386
-	and store it somewhere (C:\temp is a good place) along with the usbser.inf
-	file. Then plug in the LPC214x and direct windows to the usbser driver.
-	Windows then creates an extra COMx port that you can open in a terminal
-	program, like hyperterminal.
-
-	Linux:
-	The device should be recognised automatically by the cdc_acm driver,
-	which creates a /dev/ttyACMx device file that acts just like a regular
-	serial port.
-
-*/
-
-
 #include <string.h>			// memcpy
-
-
 #include "type.h"
 #include "debug.h"
-
 #ifdef LPC214x
 #include "lpc214x.h"
 #endif
@@ -59,17 +36,11 @@
 #endif
 
 #include "usbisoc.h"
-
-
 #include "armVIC.h"
-
 #include "hal.h"
 #include "console.h"
 #include "usbapi.h"
 #include "usbhw_lpc.h"
-
-#include "serial_fifo.h"
-
 
 #define DEBUG_LED_ON(x)     IOCLR0 = (1 << x);
 #define DEBUG_LED_OFF(x)    IOSET0 = (1 << x);
@@ -84,7 +55,6 @@
 #define MAX_PACKET_SIZE	1023
 
 #define LE_WORD(x)		((x)&0xFF),((x)>>8)
-
 
 
 #define NUM_ISOC_FRAMES 4
@@ -104,13 +74,6 @@ U8 isConnectedFlag = 0;
 
 #define IRQ_MASK 0x00000080
 
-// data structure for GET_LINE_CODING / SET_LINE_CODING class requests
-typedef struct {
-	U32		dwDTERate;
-	U8		bCharFormat;
-	U8		bParityType;
-	U8		bDataBits;
-} TLineCoding;
 
 //static U8 abBulkBuf[64];
 static U8 abClassReqData[8];
@@ -140,8 +103,6 @@ static const U8 abDescriptors[] = {
 	0x03,						// iSerialNumber
 	0x01,						// bNumConfigurations
 
-	
-	
 // configuration descriptor
 	0x09,
 	DESC_CONFIGURATION,
@@ -151,7 +112,6 @@ static const U8 abDescriptors[] = {
 	0x00,						// iConfiguration
 	0xC0,						// bmAttributes
 	0x32,						// bMaxPower
-	
 	
 // data class interface descriptor   9+7+7=23
 	0x09,
@@ -200,9 +160,6 @@ static const U8 abDescriptors[] = {
 // terminating zero
 	0
 };
-
-
-
 
 
 /**
@@ -264,8 +221,6 @@ static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData)
                                  " ldmfd sp!,{r0-r8,pc}^")
 
 
-
-
 /**
 	Interrupt handler
 	
@@ -274,9 +229,7 @@ static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData)
 void USBIntHandler(void) 
 {
 	 ISR_ENTRY(); 
-	//DBG("Z");
 	USBHwISR();
-	//DBG("z");
 	VICVectAddr = 0x00;    // dummy write to VIC to signal end of ISR
 	ISR_EXIT();
 }
@@ -292,16 +245,6 @@ char hexch(const unsigned char x) {
 }
 
 
-/*
-static void SendIsocIn()
-{
-	U8 tempBuff[1];
-	tempBuff[0] = 'q';
-	
-	// send over USB
-	USBHwEPWrite(ISOC_IN_EP, tempBuff, 1);
-}
-*/
 /**
 	USB frame interrupt handler
 	
@@ -314,24 +257,8 @@ static void SendIsocIn()
 
  */
 
-char tempBuff[MAX_PACKET_SIZE + 1];
 void USBFrameHandler(U16 wFrame)
 {
-	/*
-	int i;
-	int iLen = USBHwEPReadDave(ISOC_OUT_EP, tempBuff, sizeof(tempBuff));
-	if (iLen > 0) {
-		for(i = 0; i <iLen; i++ ) {
-			DBG("%c", tempBuff[i]);
-		}
-		//DBG("Q!");
-	}
-	
-	*/
-	//SendIsocIn();
-	//if( ( (dd3 >> 1) & 0x0F ) == 0 ) {
-		//enableDMAForEndpoint(ISOC_IN_EP);
-	//}
 
 	
 }
@@ -370,16 +297,8 @@ char toHex(int x) {
 }
 
 
-
-
-
-
 void setupDMA(void) {
 	int i;
-	//allocate source data usb ram
-	
-
-	
 	USBInitializeISOCFrameArray(isocFrameArray, NUM_ISOC_FRAMES, isocFrameNumber, BYTES_PER_ISOC_FRAME);
 	isocFrameNumber += NUM_ISOC_FRAMES;
 	
@@ -391,17 +310,13 @@ void setupDMA(void) {
 	//Set UDCA head register to point to start of usb ram
 	USBInitializeUSBDMA(udcaHeadArray);
 
-	
 	//set DDP pointer for endpoint so it knows where first DD is located, manual section 13.1
 	//set index of isoc DDP to point to start DD
 	//udcaHeadArray[EP2IDX(ISOC_IN_EP)] = dmaDescriptorArray[0];
 	USBSetHeadDDForDMA(ISOC_IN_EP, udcaHeadArray, dmaDescriptorArray[0]);
 	
 	//enable dma for endpoint
-	USBEnableDMAForEndpoint(ISOC_IN_EP);
-	
-    //disable by setting the corresponding bit in the 'Endpoint Interrupt Enable' register to 0
-	
+	USBEnableDMAForEndpoint(ISOC_IN_EP);	
 }
 
 void logdd(void) {
@@ -463,6 +378,69 @@ void logdd(void) {
 
 	
 	
+}
+
+
+
+void newDDRequestInterupt(void) {
+	U8 epOutNumber= EP2IDX(ISOC_OUT_EP);
+	U8 epInNumber= EP2IDX(ISOC_OUT_EP);
+
+	if (USBDMAIntSt & (1<<0)) {
+		//End of transfer interupt
+		
+		if (USBEoTIntSt & (1<<epOutNumber)) {
+			//This endpoint had an end of transfer
+			
+			//Clear the interupt
+			USBEoTIntClr = (1<<epOutNumber);
+		}
+		
+		if (USBEoTIntSt & (1<<epInNumber)) {
+			//This endpoint had an end of transfer
+			
+			//Clear the interupt
+			USBEoTIntClr = (1<<epInNumber);
+		}
+		
+	}
+
+	if (USBDMAIntSt & (1<<1)) {
+		//New DD Request Interupt
+		
+		if (USBNDDRIntSt & (1<<epOutNumber)) {
+			//This endpoint had an end of transfer
+
+			//Clear the interupt
+			USBNDDRIntClr = (1<<epOutNumber);
+		}
+
+		if (USBNDDRIntSt & (1<<epInNumber)) {
+			//This endpoint had an end of transfer
+
+			//Clear the interupt
+			USBNDDRIntClr = (1<<epInNumber);
+		}
+	}
+
+	if (USBDMAIntSt & (1<<2)) {
+		//System Error Interupt
+		
+		if (USBSysErrIntSt & (1<<epOutNumber)) {
+			//This endpoint had an end of transfer
+
+			//Clear the interupt
+			USBSysErrIntClr = (1<<epOutNumber);
+		}
+
+		if (USBSysErrIntSt & (1<<epInNumber)) {
+			//This endpoint had an end of transfer
+
+			//Clear the interupt
+			USBSysErrIntClr = (1<<epInNumber);
+		}
+	}
+
 }
 
 /*************************************************************************
@@ -532,7 +510,9 @@ int main(void)
 	c = EOF;
 	
 	
-	//populate source datw with all 'A's
+	
+	
+	//populate source data with all 'A's
 	for(i = 0; i < ISOC_DATA_BUFFER_SIZE; i++ ) {
 		isocDataBuffer[i] = 'A';
 	}
