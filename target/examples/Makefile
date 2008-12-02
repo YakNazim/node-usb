@@ -26,7 +26,7 @@ LINKFILE	= lpc2148-rom.ld
 CSRCS	= halsys.c printf.c console.c
 OBJS 	= crt.o $(CSRCS:.c=.o)
 
-EXAMPLES = hid serial msc custom serial_dave serial_dave_isoc_out
+EXAMPLES = hid serial msc custom serial_dave serial_dave_isoc_out isoc_dma
 
 all: depend $(EXAMPLES)
 
@@ -34,6 +34,7 @@ hid: 	$(OBJS) main_hid.o $(LIBNAME).a
 serial:	$(OBJS) main_serial.o serial_fifo.o armVIC.o $(LIBNAME).a
 serial_dave:    $(OBJS) main_serial_dave.o serial_fifo.o armVIC.o $(LIBNAME).a
 serial_dave_isoc_out:   $(OBJS) main_serial_dave_isoc_out.o serial_fifo.o armVIC.o $(LIBNAME).a
+isoc_dma:  $(OBJS) armVIC.o isoc_dma.o $(LIBNAME.a)
 msc:	$(OBJS) main_msc.o msc_bot.o msc_scsi.o blockdev_sd.o sdcard.o lpc2000_spi.o $(LIBNAME).a
 custom:	$(OBJS) main_custom.o $(LIBNAME).a
 
