@@ -60,7 +60,11 @@
 #define DEBUG_LED_OFF(x)        IOSET0 = (1 << x);
 
 /* serial port              */
-#define BAUD_RATE               115200
+#define BAUD_RATE                 115200
+
+/* sizes */
+#define BULK_FIFO_SIZE            128
+
 
 /* Define endpoints for usb */
 /* Interrupt                */
@@ -124,9 +128,15 @@ __attribute__ ((section (".usbdma"), aligned(128))) U8 isocDataBuffer[ISOC_DATA_
 
 // bulk data fifos.
 
-static fifo_t txfifo;
-static fifo_t rxfifo;
+static fifo_t bulk_txfifo;
+static fifo_t bulk_rxfifo;
 
+static U8 bulk_txdata[BULK_FIFO_SIZE];
+static U8 bulk_rxdata[BULK_FIFO_SIZE];
+
+static U8 bulkBuf[MAX_PACKET_SIZE_BULK];
+
+static volatile BOOL fChainDone;
 static volatile BOOL fBulkInBusy;
 
 // forward declaration of interrupt handler
@@ -376,16 +386,24 @@ static void BulkOut(U8 bEP, U8 bEPStatus)
 {
 	int i, iLen;
 
-	if (fifo_free(&rxfifo) < MAX_PACKET_SIZE) {
+	DBG (" Bulk Out...");
+
+	if (fifo_free(&bulk_rxfifo) < MAX_PACKET_SIZE_BULK) {
 		// may not fit into fifo
 		return;
 	}
 
-	// get data from USB into intermediate buffer
-	iLen = USBHwEPRead(bEP, abBulkBuf, sizeof(abBulkBuf));
+	// get data from USB into intermediate buffer (bulk_rxfifo)
+	iLen = USBHwEPRead(bEP, bulkBuf, sizeof(bulkBuf));
 	for (i = 0; i < iLen; i++) {
 		// put into FIFO
-		if (!fifo_put(&rxfifo, abBulkBuf[i])) {
+	/* 	if (!fifo_put(&bulk_rxfifo, bulkBuf[i])) { */
+/* 			// overflow... :( */
+/* 			ASSERT(FALSE); */
+/* 			break; */
+/* 		} */
+ 	        // copy rxfifo to txfifo? seems right for echo case...
+		if (!fifo_put(&bulk_txfifo, bulkBuf[i])) {
 			// overflow... :(
 			ASSERT(FALSE);
 			break;
@@ -419,18 +437,18 @@ static void SendNextBulkIn(U8 bEP, BOOL fFirstPacket)
 	}
 	
 	// get up to MAX_PACKET_SIZE bytes from transmit FIFO into intermediate buffer
-	for (iLen = 0; iLen < MAX_PACKET_SIZE; iLen++) {
-		if (!fifo_get(&txfifo, &abBulkBuf[iLen])) {
+	for (iLen = 0; iLen < MAX_PACKET_SIZE_BULK; iLen++) {
+		if (!fifo_get(&bulk_txfifo, &bulkBuf[iLen])) {
 			break;
 		}
 	}
 	
 	// send over USB
-	USBHwEPWrite(bEP, abBulkBuf, iLen);
+	USBHwEPWrite(bEP, bulkBuf, iLen);
 	fBulkInBusy = TRUE;
 
 	// was this a short packet?
-	if (iLen < MAX_PACKET_SIZE) {
+	if (iLen < MAX_PACKET_SIZE_BULK) {
 		fChainDone = TRUE;
 	}
 }
@@ -471,14 +489,22 @@ char hexch(const unsigned char x) {
    (as required by the windows usbser.sys driver).
 
 */
+/* static void USBFrameHandler(U16 wFrame) */
+/* { */
+/* 	if (!fBulkInBusy && (fifo_avail(&txfifo) != 0)) { */
+/* 		// send first packet */
+/* 		SendNextBulkIn(BULK_IN_EP, TRUE); */
+/* 	} */
+/* } */
+
 
 /*
  *	Initialises the bulk port.
  */
 void bulk_init(void)
 {
-	fifo_init(&txfifo, txdata);
-	fifo_init(&rxfifo, rxdata);
+	fifo_init(&bulk_txfifo, bulk_txdata);
+	fifo_init(&bulk_rxfifo, bulk_rxdata);
 	fBulkInBusy = FALSE;
 	fChainDone = TRUE;
 }
@@ -494,6 +520,7 @@ static void USBDevIntHandler(U8 bDevStatus)
         fBulkInBusy = FALSE;
     }
 }
+
 
 char toHex(int x) {
     if( x <= 9 ) {
@@ -576,6 +603,9 @@ int main(void)
 
     // bulk   - echo
     bulk_init();
+
+
+
     // isoc A - Broadcast numbers
 
     // isoc B - echo
