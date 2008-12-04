@@ -66,7 +66,7 @@ sleep 20
 #     or `s19' (Motorola s19). Flash memory will be erased prior to
 #     programming if the `erase' parameter is given.
 
-flash write_image serial_dave_isoc_out.hex 0x0 ihex
+flash write_image isoc_dma.hex 0x0 ihex
 #flash write_image race_test.hex 0x0 ihex
 #flash write_image serial_dave.hex 0x0 ihex
 #flash write_image serial.hex 0x0 ihex
