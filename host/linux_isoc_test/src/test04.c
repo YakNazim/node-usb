@@ -192,7 +192,7 @@ int packetCount = 32;
 int startFrame = 0;
 
 
-unsigned char destBuff[16024000];
+unsigned char isocInputDestinationBuffer[16024000];
 
 void writeURBInISOC(int fd, struct usbdevfs_urb *myOutURB, void *requestUniqueIDOut, int structSize ) {
 	int ret,i;
@@ -201,7 +201,7 @@ void writeURBInISOC(int fd, struct usbdevfs_urb *myOutURB, void *requestUniqueID
     myOutURB->type = USBDEVFS_URB_TYPE_ISO;
     myOutURB->flags |= USBDEVFS_URB_ISO_ASAP;
     myOutURB->endpoint = 0x83;
-    myOutURB->buffer = destBuff;
+    myOutURB->buffer = isocInputDestinationBuffer;
     myOutURB->buffer_length = 1023 * packetCount;
     myOutURB->actual_length = 0;
     myOutURB->usercontext = &requestUniqueIDOut;
@@ -245,7 +245,7 @@ void writeURBInISOC(int fd, struct usbdevfs_urb *myOutURB, void *requestUniqueID
 }
 
 
-int totalIsocBytesReceived = 0;
+int totalIsocInBytesReceived = 0;
 
 int reapISOC_URB(int fd) {
 	int ret, i;
@@ -272,7 +272,7 @@ int reapISOC_URB(int fd) {
 			startFrame += myURBPtr->number_of_packets;
 			
 			if (myURBPtr->endpoint != 0x05) {
-				totalIsocBytesReceived += myURBPtr->actual_length;
+				totalIsocInBytesReceived += myURBPtr->actual_length;
 				/*
 				for (i = 0; i < myURBPtr->actual_length; i++) {
 					printf("0x%X ", ((char*)myURBPtr->buffer)[i]);
@@ -481,7 +481,7 @@ int main(void) {
 
 		timeDelta = time(NULL) - startTime;
 		if (timeDelta > 0) {
-			long bytesPerSecond = totalIsocBytesReceived / timeDelta;
+			long bytesPerSecond = totalIsocInBytesReceived / timeDelta;
 			printf("Bytes per second is %d\n", bytesPerSecond);
 		}
 		*/
@@ -495,7 +495,7 @@ int main(void) {
 
 			timeDelta = time(NULL) - startTime;
 			if (timeDelta > 0) {
-				long bytesPerSecond = totalIsocBytesReceived / timeDelta;
+				long bytesPerSecond = totalIsocInBytesReceived / timeDelta;
 				printf("Bytes per second is %d\n", bytesPerSecond);
 			}
 		}

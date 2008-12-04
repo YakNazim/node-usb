@@ -13,10 +13,37 @@
 
 
 
-int8_t infobuff[4096];
-int8_t infobuff2[4096];
-int8_t infobuff3[4096];
 
+
+//Variables for ISOC output
+#define ISOC_OUTPUT_PACKET_COUNT 1
+struct usbdevfs_urb *myOutURB = NULL;
+char isocOutputBuffer[4096];
+int isocOutputUniqueID = 1;
+uint32_t totalIsocOutBytesSent = 0;
+#define ISOC_OUT_ENDPOINT 0x06
+
+
+
+//Variables for ISOC input
+#define URB_ARR_COUNT 16
+//#define URB_ARR_COUNT 1
+struct usbdevfs_urb *myInputURBArray[URB_ARR_COUNT];
+int urbIdArray[URB_ARR_COUNT];
+
+//int packetCount = 1;
+#define ISOC_INPUT_PACKET_COUNT 32
+int isocInputStartFrame = 0;
+
+#define ISOC_IN_ENDPOINT  0x83
+
+unsigned char isocInputDestinationBuffer[16024000];
+
+
+uint32_t totalIsocInBytesReceived = 0;
+
+//Misc variables
+struct usbdevfs_urb *mostRecentReapedURBPtr = NULL;
 
 
 int findDevice(char *destinationDevicePathLocation, int *deviceNumber) {
@@ -118,124 +145,46 @@ int findDevice(char *destinationDevicePathLocation, int *deviceNumber) {
 	return(-1);
 }
 
-void reapURB(int fd) {
-	int ret, i;
-	struct usbdevfs_urb *myURBPtr = NULL;
-	printf("-----------------------------------\n");
-	printf("Reaping URB...\n");
-	
-	ret = ioctl(fd, USBDEVFS_REAPURBNDELAY, &myURBPtr);
-	if (ret == -1) {
-		printf("Error %d while reaping URB: %s\n", errno, strerror(errno));
-	} else {
-		if (myURBPtr == NULL) {
-			printf("myURB2 is null...\n");
-		} else {
-			printf("myURBPtr.status is %d\n", myURBPtr->status);
-			printf("myURBPtr.flag is %d\n", myURBPtr->flags);
-			printf("myURBPtr.error_count is %d\n", myURBPtr->error_count);
-			printf("myURBPtr.number_of_packets is %d\n", myURBPtr->number_of_packets);
-			printf("myURBPtr.actual_length is %d\n", myURBPtr->actual_length);
-			printf("myURBPtr.usercontext is %d\n", myURBPtr->usercontext);
-
-			if (myURBPtr->endpoint != 0x05) {
-				for (i = 0; i < myURBPtr->actual_length; i++) {
-					printf("%c", ((char*)myURBPtr->buffer)[i]);
-				}
-				printf("\n");
-			}
-			
-			ret = ioctl(fd, USBDEVFS_DISCARDURB, myURBPtr);
-			printf("Ret after discarding URB is %d", ret);
-		}
-	}
-	
-	printf("\n");
-	sleep(1);
-}
-
-void writeURB(int fd, struct usbdevfs_urb *myOutURB, char *stringBuff, void *requestUniqueIDOut) {
-	int ret;
-    memset(myOutURB, 0, sizeof(struct usbdevfs_urb));
-    myOutURB->type = USBDEVFS_URB_TYPE_BULK;
-    myOutURB->endpoint = 0x05;
-    myOutURB->buffer = stringBuff;
-    myOutURB->buffer_length = strlen(stringBuff);;
-    myOutURB->actual_length = myOutURB->buffer_length;
-    myOutURB->number_of_packets = 0;
-    myOutURB->usercontext = &requestUniqueIDOut;
-    
-	printf("-----------------------------------\n");
-	printf("Writing URB to bulk out...\n");
-	
-    ret = ioctl(fd, USBDEVFS_SUBMITURB, myOutURB);
-    if (ret == -1) {
-		printf("Error %d while trying to write string to usb device, string is: %s\n", errno, strerror(errno));
-	}  else {
-		printf("Wrote string to device, ret = %d\n", ret);
-	}
-    printf("\n");
-    sleep(1);
-}
 
 
-
-
-
-struct usbdevfs_urb *myOutURB = NULL;
-struct usbdevfs_urb *myOutURB2 = NULL;
-//#define URB_ARR_COUNT 16
-#define URB_ARR_COUNT 1
-struct usbdevfs_urb *myOutURBArray[URB_ARR_COUNT];
-int urbIdArray[URB_ARR_COUNT];
-
-int packetCount = 1;
-//int packetCount = 32;
-int startFrame = 0;
-
-
-unsigned char destBuff[16024000];
-
-void writeURBInISOC(int fd, struct usbdevfs_urb *myOutURB, void *requestUniqueIDOut, int structSize ) {
+void writeURBInISOC(int fd, struct usbdevfs_urb *myInputURB, void *requestUniqueIDOut, const int structSize ) {
 	int ret,i;
 	
-	memset(myOutURB, 0, structSize);
-    myOutURB->type = USBDEVFS_URB_TYPE_ISO;
-    myOutURB->flags |= USBDEVFS_URB_ISO_ASAP;
-    myOutURB->endpoint = 0x83;
-    myOutURB->buffer = destBuff;
-    myOutURB->buffer_length = 1023 * packetCount;
-    myOutURB->actual_length = 0;
-    myOutURB->usercontext = &requestUniqueIDOut;
-    myOutURB->start_frame = startFrame;
+	memset(myInputURB, 0, structSize);
+    myInputURB->type = USBDEVFS_URB_TYPE_ISO;
+    myInputURB->flags |= USBDEVFS_URB_ISO_ASAP;
+    myInputURB->endpoint = ISOC_IN_ENDPOINT;
+    myInputURB->buffer = isocInputDestinationBuffer;
+    myInputURB->buffer_length = 1023 * ISOC_INPUT_PACKET_COUNT;
+    myInputURB->actual_length = 0;
+    myInputURB->usercontext = &requestUniqueIDOut;
+    myInputURB->start_frame = isocInputStartFrame;
     
-    myOutURB->number_of_packets = packetCount;
-    for(i = 0; i < packetCount; i++ ) {
-    	myOutURB->iso_frame_desc[i].length = 1023;
+    myInputURB->number_of_packets = ISOC_INPUT_PACKET_COUNT;
+    for(i = 0; i < ISOC_INPUT_PACKET_COUNT; i++ ) {
+    	myInputURB->iso_frame_desc[i].length = 1023;
     }
-    
-    
     
 	printf("-----------------------------------\n");
 	printf("Writing URB to isoc in...\n");
 	
-    ret = ioctl(fd, USBDEVFS_SUBMITURB, myOutURB);
+    ret = ioctl(fd, USBDEVFS_SUBMITURB, myInputURB);
     if (ret == -1) {
 		printf("Error %d while trying to write string to usb device, string is: %s\n", errno, strerror(errno));
 	}  else {
 		printf("Wrote string to device, ret = %d\n", ret);
 		
 
-		printf("myOutURB.status is %d\n", myOutURB->status);
-		printf("myOutURB.flag is %d\n", myOutURB->flags);
-		printf("myOutURB.error_count is %d\n", myOutURB->error_count);
-		printf("myOutURB.number_of_packets is %d\n", myOutURB->number_of_packets);
-		printf("myOutURB.actual_length is %d\n", myOutURB->actual_length);
-		printf("myOutURB.start_frame is %d\n", myOutURB->start_frame);
-		printf("myOutURB.usercontext is %d\n", myOutURB->usercontext);
-		printf("myOutURB->iso_frame_desc[0].actual_length is %d\n", myOutURB->iso_frame_desc[0].actual_length);
-		printf("myOutURB->iso_frame_desc[0].length is %d\n", myOutURB->iso_frame_desc[0].length);
-		printf("myOutURB->iso_frame_desc[0].status is %d\n", myOutURB->iso_frame_desc[0].status);
+		printf("myInputURB.status is %d\n", myInputURB->status);
+		printf("myInputURB.flag is %d\n", myInputURB->flags);
+		printf("myInputURB.error_count is %d\n", myInputURB->error_count);
+		printf("myInputURB.number_of_packets is %d\n", myInputURB->number_of_packets);
+		printf("myInputURB.actual_length is %d\n", myInputURB->actual_length);
+		printf("myInputURB.start_frame is %d\n", myInputURB->start_frame);
+		printf("myInputURB.usercontext is %d\n", myInputURB->usercontext);
+		printf("myInputURB->iso_frame_desc[0].actual_length is %d\n", myInputURB->iso_frame_desc[0].actual_length);
+		printf("myInputURB->iso_frame_desc[0].length is %d\n", myInputURB->iso_frame_desc[0].length);
+		printf("myInputURB->iso_frame_desc[0].status is %d\n", myInputURB->iso_frame_desc[0].status);
 		
 		//for (i = 0; i < myOutURB->iso_frame_desc[0].actual_length; i++) {
 			//printf(" 0x%X", ((unsigned char*)myOutURB->buffer)[i]);
@@ -247,19 +196,18 @@ void writeURBInISOC(int fd, struct usbdevfs_urb *myOutURB, void *requestUniqueID
 }
 
 
-int totalIsocBytesReceived = 0;
 
 int reapISOC_URB(int fd) {
 	int ret, i;
-	struct usbdevfs_urb *myURBPtr = NULL;
 	//printf("-----------------------------------\n");
 	//printf("Reaping URB...\n");
+	mostRecentReapedURBPtr = NULL;
 	
-	ret = ioctl(fd, USBDEVFS_REAPURBNDELAY, &myURBPtr);
+	ret = ioctl(fd, USBDEVFS_REAPURBNDELAY, &mostRecentReapedURBPtr);
 	if (ret == -1) {
 		//printf("Error %d while reaping URB: %s\n", errno, strerror(errno));
 	} else {
-		if (myURBPtr == NULL) {
+		if (mostRecentReapedURBPtr == NULL) {
 			//printf("myURB2 is null...\n");
 		} else {
 			/*
@@ -271,10 +219,10 @@ int reapISOC_URB(int fd) {
 			printf("myURBPtr.actual_length is %d\n", myURBPtr->actual_length);
 			printf("myURBPtr.usercontext is %d\n", myURBPtr->usercontext);
 */
-			startFrame += myURBPtr->number_of_packets;
 			
-			if (myURBPtr->endpoint != 0x05) {
-				totalIsocBytesReceived += myURBPtr->actual_length;
+			if (mostRecentReapedURBPtr->endpoint == ISOC_IN_ENDPOINT ) {
+				isocInputStartFrame += mostRecentReapedURBPtr->number_of_packets;
+				totalIsocInBytesReceived += mostRecentReapedURBPtr->actual_length;
 				/*
 				for (i = 0; i < myURBPtr->actual_length; i++) {
 					printf("0x%X ", ((char*)myURBPtr->buffer)[i]);
@@ -291,7 +239,7 @@ int reapISOC_URB(int fd) {
 			}
 			*/
 			
-			ret = ioctl(fd, USBDEVFS_DISCARDURB, myURBPtr);
+			ret = ioctl(fd, USBDEVFS_DISCARDURB, mostRecentReapedURBPtr);
 			printf("Ret after discarding URB is %d", ret);
 			ret = 0;
 			printf("\n");
@@ -310,21 +258,18 @@ int reapISOC_URB(int fd) {
 
 void writeURBOutISOC(int fd, struct usbdevfs_urb *myOutURB, char *stringBuff, void *requestUniqueIDOut) {
 	int ret,i;
-	int packetCount = 1;
-	int structSize = sizeof(struct usbdevfs_urb) + packetCount* sizeof(struct usbdevfs_iso_packet_desc);
-	//FIXME dangling
-	myOutURB = (struct usbdevfs_urb*)malloc(structSize);
+	
 	
 	memset(myOutURB, 0, sizeof(struct usbdevfs_urb));
     myOutURB->type = USBDEVFS_URB_TYPE_ISO;
     myOutURB->flags |= USBDEVFS_URB_ISO_ASAP;
-    myOutURB->endpoint = 0x06;
+    myOutURB->endpoint = ISOC_OUT_ENDPOINT;
     myOutURB->buffer = stringBuff;
-    myOutURB->buffer_length = strlen(stringBuff);;
+    myOutURB->buffer_length = strlen(stringBuff);
     myOutURB->actual_length = 0;
-    myOutURB->usercontext = &requestUniqueIDOut;
+    myOutURB->usercontext = requestUniqueIDOut;
     
-    myOutURB->number_of_packets = packetCount;
+    myOutURB->number_of_packets = ISOC_OUTPUT_PACKET_COUNT;
     myOutURB->iso_frame_desc[0].length = myOutURB->buffer_length;
     
     
@@ -341,43 +286,14 @@ void writeURBOutISOC(int fd, struct usbdevfs_urb *myOutURB, char *stringBuff, vo
 		
 	}
     printf("\n");
-    sleep(1);
+    //sleep(1);
 }
 
 
 
-void readURB(int fd, struct usbdevfs_urb *myInURB, int *requestUniqueID) {
-	int ret;
-	memset(myInURB, 0, sizeof(struct usbdevfs_urb));
-
-	myInURB->type = USBDEVFS_URB_TYPE_BULK;
-	myInURB->endpoint = 0x82;
-	myInURB->buffer = infobuff;
-	myInURB->buffer_length = 64;
-	myInURB->usercontext = requestUniqueID;
-
-	printf("-----------------------------------\n");
-	printf("Submiting URB to read data...\n");
-	ret = ioctl(fd, USBDEVFS_SUBMITURB, myInURB);
-	printf("ret from ioctl after bulk URB is %d\n", ret);
-	if (ret == -1) {
-		printf("Error %d string is: %s\n", errno, strerror(errno));
-	} else {
-		printf("myURB.status is %d\n", myInURB->status);
-		printf("myURB.flag is %d\n", myInURB->flags);
-		printf("myURB.error_count is %d\n", myInURB->error_count);
-		printf("myURB.number_of_packets is %d\n", myInURB->number_of_packets);
-		printf("myURB.actual_length is %d\n", myInURB->actual_length);
-		printf("myURB.usercontext is %d\n", myInURB->usercontext);
-
-	}
-
-	sleep(1);
-}
 
 
 int main(void) {
-	
 	int i;
 	int interfaceToClaim = 0;
 	int deviceNumber = 0;
@@ -391,8 +307,7 @@ int main(void) {
 	}
 	
 	int ret;
-	char mybuffer[1024];
-	mybuffer[0] = 'A';
+	
 	
 	printf("Trying to open device %s\n", deviceToOpen);
 	
@@ -410,52 +325,15 @@ int main(void) {
 		printf("Error %d while claiming interface, string is: %s\n",errno, strerror(errno));
     }
     
-    /*
-    struct usbdevfs_connectinfo connInfo;
-    connInfo.devnum = deviceNumber;
-    connInfo.slow = 2;
-    
-    ret = ioctl(fd, USBDEVFS_CONNECTINFO, &connInfo);
-	printf("ret from ioctl USBDEVFS_CONNECTINFO is %d\n", ret);
-	if (ret == -1) {
-		printf("Error %d string is: %s\n",errno, strerror(errno));
-	} else {
-		printf("Slow flag is %d\n", connInfo.slow);
-	}
-    */
-    int q;
-    int requestUniqueID = 77;
-    int requestUniqueIDOut = 78;
-    int requestUniqueIDOut2 = 79;
-    
-    memset(infobuff3, 0, 4095);
-    strncpy(infobuff3, "ABCD", 4095);
-    
-    int maxData = 1022;
-    char let = 'a';
-    for(q = 0; q <= maxData; q++) {
-    	infobuff[q] = let;
-    	let++;
-    	if( let > 'z' ) {
-    		let = 'a';
-    	}
-    }
-    infobuff[maxData] = '\0';
-    infobuff[maxData-1] = 'D';
-    //infobuff[63] = '\0';
-    //infobuff[62] = 'D';
-    
-    
-    //truct usbdevfs_urb myOutURB, myOutURB2, myInURB;
-
-    
-    int structSize = sizeof(struct usbdevfs_urb) + packetCount* sizeof(struct usbdevfs_iso_packet_desc);
-    myOutURB = (struct usbdevfs_urb*) malloc(structSize);	
-    myOutURB2 = (struct usbdevfs_urb*) malloc(structSize);
+ 
+    int isocOutputURBStructSize = sizeof(struct usbdevfs_urb) + (ISOC_OUTPUT_PACKET_COUNT * sizeof(struct usbdevfs_iso_packet_desc));
+    myOutURB = (struct usbdevfs_urb*) malloc(isocOutputURBStructSize);	
     	
     
+    int isocInputURBStructSize = sizeof(struct usbdevfs_urb) + (ISOC_INPUT_PACKET_COUNT * sizeof(struct usbdevfs_iso_packet_desc));
+
     for(i = 0; i < URB_ARR_COUNT; i++ ) {
-    	myOutURBArray[i] = (struct usbdevfs_urb*) malloc(structSize);
+    	myInputURBArray[i] = (struct usbdevfs_urb*) malloc(isocInputURBStructSize);
     	urbIdArray[i] = i;
     }
     
@@ -467,52 +345,69 @@ int main(void) {
 	
 	for (i = 0; i < URB_ARR_COUNT; i++) {
 		printf("===============================================================================\n");
-		writeURBInISOC(fd, myOutURBArray[i], &urbIdArray[i], structSize);
+		//writeURBInISOC(fd, myInputURBArray[i], &urbIdArray[i], isocInputURBStructSize);
 	}
 	
-	
+
+	isocOutputBuffer[0]++;
+	if (isocOutputBuffer[0] < 'a' || isocOutputBuffer[0] > 'z') {
+		isocOutputBuffer[0] = 'a';
+	}
+	isocOutputBuffer[1] = '\0';
+	//sprintf( isocOutputBuffer, "%d\n", 0);
+	//totalIsocOutBytesSent += strlen(isocOutputBuffer) + 1;
+	writeURBOutISOC(fd, myOutURB, isocOutputBuffer, &isocOutputUniqueID);
+	int q;
 	
 	for (q = 0; q < 100000; q++) {
-		//printf("===============================================================================\n");
-		//writeURBOutISOC(fd, &myOutURB, infobuff, &requestUniqueIDOut);
-		
-		/*
-		writeURBInISOC(fd, myOutURB2, &requestUniqueIDOut2, structSize);
-		while (reapISOC_URB(fd) < 0) {
-		}
 
-		timeDelta = time(NULL) - startTime;
-		if (timeDelta > 0) {
-			long bytesPerSecond = totalIsocBytesReceived / timeDelta;
-			printf("Bytes per second is %d\n", bytesPerSecond);
-		}
-		*/
-		
+		 printf("Sending: '%s'\n", isocOutputBuffer);
+		 writeURBOutISOC(fd, myOutURB, isocOutputBuffer, &isocOutputUniqueID);
+		 while (reapISOC_URB(fd) < 0) {
+		 }
+		 
+		 printf("Reaped an isoc output URB, EP=0x%X\n", mostRecentReapedURBPtr->endpoint);
+		 
+/*
 		for (i = 0; i < URB_ARR_COUNT; i++) {
 			printf("===============================================================================\n");
 			while (reapISOC_URB(fd) < 0) {
 			}
 
-			writeURBInISOC(fd, myOutURBArray[i], &urbIdArray[i], structSize);
+			printf("Reaped urb ep is %X\n", mostRecentReapedURBPtr->endpoint);
+			if (mostRecentReapedURBPtr->endpoint == ISOC_IN_ENDPOINT) {
+				writeURBInISOC(fd, myInputURBArray[i], &urbIdArray[i], isocInputURBStructSize);
+
+			} else if (mostRecentReapedURBPtr->endpoint == ISOC_OUT_ENDPOINT) {
+				i--;
+
+				isocOutputBuffer[0]++;
+				if (isocOutputBuffer[0] < 'a' || isocOutputBuffer[0] > 'z') {
+					isocOutputBuffer[0] = 'a';
+				}
+				isocOutputBuffer[1] = '\0';
+
+				printf("Got response from isoc output endpoint...\n");
+				//sprintf(isocOutputBuffer, "%d\n", q);
+				totalIsocOutBytesSent += strlen(mostRecentReapedURBPtr->actual_length);
+
+				writeURBOutISOC(fd, myOutURB, isocOutputBuffer, &isocOutputUniqueID);
+			}
 
 			timeDelta = time(NULL) - startTime;
 			if (timeDelta > 0) {
-				printf("Total bytes transfered: %d\n", totalIsocBytesReceived);
-				long bytesPerSecond = totalIsocBytesReceived / timeDelta;
-				printf("Bytes per second is %d\n", bytesPerSecond);
+				printf("totalIsocInBytesReceived = %d\n", totalIsocInBytesReceived);
+				long isocInBytesPerSecond = totalIsocInBytesReceived / timeDelta;
+				printf("Isoc In Bytes per second is %d\n", isocInBytesPerSecond);
+
+				printf("totalIsocOutBytesSent = %d\n", totalIsocOutBytesSent);
+				long isocOutBytesPerSecond = totalIsocOutBytesSent / timeDelta;
+				printf("Isoc Out Bytes per second is %d\n", isocOutBytesPerSecond);
 			}
 		}
-		
-		
+		*/
 	
-	
-			
-		
-		
-		//reapURB(fd);
 
-		//readURB(fd, &myInURB, &requestUniqueID);
-		//reapURB(fd);
 	}
 	
 	//Release the interface
@@ -522,10 +417,7 @@ int main(void) {
 		printf("Error %d string is: %s\n",errno, strerror(errno));
     }
 
-	
-	
 	close(fd);
-	
 	return(0);
 }
 
