@@ -54,6 +54,8 @@
 #include "usbapi.h"
 #include "usbhw_lpc.h"
 
+#include "serial_fifo.h"
+
 #define DEBUG_LED_ON(x)         IOCLR0 = (1 << x);
 #define DEBUG_LED_OFF(x)        IOSET0 = (1 << x);
 
@@ -110,6 +112,7 @@
 #define EP2IDX(bEP) ((((bEP)&0xF)<<1)|(((bEP)&0x80)>>7))
 
 #define NUM_ISOC_FRAMES 4
+#define BYTES_PER_ISOC_FRAME 1023
 #define NUM_DMA_DESCRIPTORS 6
 #define ISOC_DATA_BUFFER_SIZE (1024*6)
 
@@ -117,6 +120,12 @@ __attribute__ ((section (".usbdma"), aligned(128))) volatile U32* udcaHeadArray[
 __attribute__ ((section (".usbdma"), aligned(128))) U32 isocFrameArray[NUM_ISOC_FRAMES];
 __attribute__ ((section (".usbdma"), aligned(128))) volatile U32 dmaDescriptorArray[NUM_DMA_DESCRIPTORS][5];
 __attribute__ ((section (".usbdma"), aligned(128))) U8 isocDataBuffer[ISOC_DATA_BUFFER_SIZE];
+
+
+// bulk data fifos.
+
+static fifo_t txfifo;
+static fifo_t rxfifo;
 
 static volatile BOOL fBulkInBusy;
 
@@ -357,6 +366,88 @@ void USBIntHandler(void)
     ISR_EXIT();
 }
 
+/**
+	Local function to handle incoming bulk data
+		
+	@param [in] bEP
+	@param [in] bEPStatus
+ */
+static void BulkOut(U8 bEP, U8 bEPStatus)
+{
+	int i, iLen;
+
+	if (fifo_free(&rxfifo) < MAX_PACKET_SIZE) {
+		// may not fit into fifo
+		return;
+	}
+
+	// get data from USB into intermediate buffer
+	iLen = USBHwEPRead(bEP, abBulkBuf, sizeof(abBulkBuf));
+	for (i = 0; i < iLen; i++) {
+		// put into FIFO
+		if (!fifo_put(&rxfifo, abBulkBuf[i])) {
+			// overflow... :(
+			ASSERT(FALSE);
+			break;
+		}
+	}
+}
+
+
+
+/**
+	Sends the next packet in chain of packets to the host
+		
+	@param [in] bEP
+	@param [in] bEPStatus
+ */
+static void SendNextBulkIn(U8 bEP, BOOL fFirstPacket)
+{
+	int iLen;
+
+	// this transfer is done
+	fBulkInBusy = FALSE;
+	
+	// first packet?
+	if (fFirstPacket) {
+		fChainDone = FALSE;
+	}
+
+	// last packet?
+	if (fChainDone) {
+		return;
+	}
+	
+	// get up to MAX_PACKET_SIZE bytes from transmit FIFO into intermediate buffer
+	for (iLen = 0; iLen < MAX_PACKET_SIZE; iLen++) {
+		if (!fifo_get(&txfifo, &abBulkBuf[iLen])) {
+			break;
+		}
+	}
+	
+	// send over USB
+	USBHwEPWrite(bEP, abBulkBuf, iLen);
+	fBulkInBusy = TRUE;
+
+	// was this a short packet?
+	if (iLen < MAX_PACKET_SIZE) {
+		fChainDone = TRUE;
+	}
+}
+
+
+/**
+	Local function to handle outgoing bulk data
+		
+	@param [in] bEP
+	@param [in] bEPStatus
+ */
+static void BulkIn(U8 bEP, U8 bEPStatus)
+{
+	SendNextBulkIn(bEP, FALSE);
+}
+
+
 
 // print out hex char
 char hexch(const unsigned char x) {
@@ -381,9 +472,20 @@ char hexch(const unsigned char x) {
 
 */
 
+/*
+ *	Initialises the bulk port.
+ */
+void bulk_init(void)
+{
+	fifo_init(&txfifo, txdata);
+	fifo_init(&rxfifo, rxdata);
+	fBulkInBusy = FALSE;
+	fChainDone = TRUE;
+}
+
+
 /**
-   USB device status handler
-        
+   USB device status handler       
    Resets state machine when a USB reset is received.
 */
 static void USBDevIntHandler(U8 bDevStatus)
@@ -409,7 +511,10 @@ char toHex(int x) {
 **************************************************************************/
 int main(void)
 {
-    int c;
+
+    ///////////////////////////////////////////////////
+    // PRELUDE
+    ///////////////////////////////////////////////////
         
     // PLL and MAM
     HalSysInit();
@@ -432,15 +537,16 @@ int main(void)
 
     // register endpoint handlers
     USBHwRegisterEPIntHandler(INT_IN_EP, NULL);
-        
-    //USBHwRegisterEPIntHandler(ISOC_OUT_EP, IsocOut);
+    USBHwRegisterEPIntHandler(BULK_IN_EP, BulkIn);
+    USBHwRegisterEPIntHandler(BULK_OUT_EP, BulkOut);
+
+    // USBHwRegisterEPIntHandler(ISOC_OUT_EP, IsocOut);
                 
     // register frame handler
-    //USBHwRegisterFrameHandler(USBFrameHandler);
+    // USBHwRegisterFrameHandler(USBFrameHandler);
         
     // register device event handler
     USBHwRegisterDevIntHandler(USBDevIntHandler);
-
 
     DBG("Starting USB communication\n");
 
@@ -460,11 +566,38 @@ int main(void)
         
     // connect to bus
     USBHwConnect(TRUE);
-        
+
+
+    /////////////////////////////////////////////
+    // FUNCTION
+    /////////////////////////////////////////////
+
+    // int
+
+    // bulk   - echo
+    bulk_init();
+    // isoc A - Broadcast numbers
+
+    // isoc B - echo
+
+    // isoc C
+    
+
+
+
+
+
+
+
+
+    //////////////////////////////////////////
+    // DEBUG LIGHTS
+    //////////////////////////////////////////
+
+    int c;
     int x = 0;
     int ch  ='a';
     c = EOF;
-        
         
     // echo any character received (do USB stuff in interrupt)
     while (1) {
