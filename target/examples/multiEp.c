@@ -1,5 +1,11 @@
 
 /*
+ * multiEp.c
+ * ------------------------------
+ * example to test multiple endpoint types in one configuration.
+ */
+
+/*
   LPCUSB, an USB device driver for LPC microcontrollers   
   Copyright (C) 2006 Bertrik Sikken (bertrik@sikken.nl)
 
@@ -373,6 +379,7 @@ void USBIntHandler(void)
     USBHwISR();
     //DBG("z");
     VICVectAddr = 0x00;    // dummy write to VIC to signal end of ISR
+    DBG("Exit int\n");
     ISR_EXIT();
 }
 
@@ -385,8 +392,9 @@ void USBIntHandler(void)
 static void BulkOut(U8 bEP, U8 bEPStatus)
 {
 	int i, iLen;
+	int j = 0;
 
-	DBG (" Bulk Out...");
+	DBG ("\nBulk Out...\n");
 
 	if (fifo_free(&bulk_rxfifo) < MAX_PACKET_SIZE_BULK) {
 		// may not fit into fifo
@@ -407,7 +415,10 @@ static void BulkOut(U8 bEP, U8 bEPStatus)
 			// overflow... :(
 			ASSERT(FALSE);
 			break;
+		} else {
+		    DBG("%c",bulkBuf[i]);
 		}
+	
 	}
 }
 
@@ -462,6 +473,7 @@ static void SendNextBulkIn(U8 bEP, BOOL fFirstPacket)
  */
 static void BulkIn(U8 bEP, U8 bEPStatus)
 {
+    DBG("\nBulk in...\n");
 	SendNextBulkIn(bEP, FALSE);
 }
 
@@ -606,18 +618,12 @@ int main(void)
 
 
 
-    // isoc A - Broadcast numbers
+    // isoc A - regular - Broadcast numbers
 
-    // isoc B - echo
+    // isoc B - dma -echo
 
-    // isoc C
+    // isoc C - dma
     
-
-
-
-
-
-
 
 
     //////////////////////////////////////////
