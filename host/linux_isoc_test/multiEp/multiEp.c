@@ -25,16 +25,20 @@
 #include "lpc_util.h"
 
 
+static const int interfaceToClaim = 0;
+
 int8_t infobuff[1024];
 
 int main(void) {
 
-
-    int interfaceToClaim = 0;
-    int deviceNumber = 0;
+    int deviceNumber         = 0;
+    int ret;
     char deviceToOpen[4096];
-    int r = findDevice(deviceToOpen, &deviceNumber);
-    if( r != 0 ) {
+ 
+    /* Find device */
+    ret = findDevice(deviceToOpen, &deviceNumber);
+
+    if( ret != 0 ) {
 	printf("ERROR: Unable to locate LPCUSB device attached \
                 to system (or permissions to /dev/bus/usb are wrong)\n");
 	exit(-1);
@@ -43,7 +47,25 @@ int main(void) {
                deviceToOpen, deviceNumber);
     }
 
+    /* Open device */
+    printf("Trying to open device %s\n", deviceToOpen);
+    	
+    int fd = open(deviceToOpen, O_ASYNC | O_RDWR);
+    if( fd == -1 ) {
+    	printf("An error occured dirng open of device, errno=%d\n", errno);
+    	printf("%s\n", strerror(errno));
+    	exit(1);
+    }
 
+    /* Claim interface X of the USB device */
+    printf("Claiming interface...\n");
+    ret = ioctl(fd, USBDEVFS_CLAIMINTERFACE, &interfaceToClaim);
+    if( ret != 0 ) {
+		printf("Error %d while claiming interface, \
+                        string is: %s\n",errno, strerror(errno));
+    } else {
+	printf("Claimed interface %d\n", interfaceToClaim);
+    }
 
 
     return(0);
