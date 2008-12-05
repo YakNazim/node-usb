@@ -184,7 +184,7 @@ void writeURB(int fd, struct usbdevfs_urb *myOutURB, char *stringBuff, void *req
 
 
 
-unsigned char destBuff[1024];
+unsigned char isocInputDestinationBuffer[1024];
 void writeURBInISOC(int fd, void *requestUniqueIDOut) {
 	int ret,i;
 	int packetCount = 1;
@@ -196,7 +196,7 @@ void writeURBInISOC(int fd, void *requestUniqueIDOut) {
     myOutURB->type = USBDEVFS_URB_TYPE_ISO;
     myOutURB->flags |= USBDEVFS_URB_ISO_ASAP;
     myOutURB->endpoint = 0x83;
-    myOutURB->buffer = destBuff;
+    myOutURB->buffer = isocInputDestinationBuffer;
     myOutURB->buffer_length = 1024;
     myOutURB->actual_length = 0;
     myOutURB->usercontext = &requestUniqueIDOut;

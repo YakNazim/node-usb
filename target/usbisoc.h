@@ -7,8 +7,22 @@
 #define EP2IDX(bEP) ((((bEP)&0xF)<<1)|(((bEP)&0x80)>>7))
 
 #define USBEpDMAEn   *(volatile unsigned int *)0xE0090088
-#define USBEpDMADis   *(volatile unsigned int *)0xE009008C
+#define USBEpDMADis  *(volatile unsigned int *)0xE009008C
 #define USBUDCAH     *(volatile unsigned int *)0xE0090080
+
+
+#define USBDMAIntSt      *(volatile unsigned int *)0xE0090090
+#define USBDMAIntEn      *(volatile unsigned int *)0xE0090094
+#define USBEoTIntSt      *(volatile unsigned int *)0xE00900A0
+#define USBEoTIntClr     *(volatile unsigned int *)0xE00900A4
+#define USBNDDRIntSt     *(volatile unsigned int *)0xE00900AC
+#define USBNDDRIntClr    *(volatile unsigned int *)0xE00900B0
+#define USBSysErrIntSt   *(volatile unsigned int *)0xE00900B8
+#define USBSysErrIntClr  *(volatile unsigned int *)0xE00900BC
+
+
+
+
 
 
 void USBSetupDMADescriptor(

@@ -208,7 +208,7 @@ static const U8 abDescriptors[] = {
 
 
 
-U8 isConnected = 0;
+U8 isConnectedFlag = 0;
 
 /**
 	Local function to handle the USB-CDC class requests
@@ -249,7 +249,7 @@ DBG("SET_CONTROL_LINE_STATE %X\n", pSetup->wValue);
 	default:
 		return FALSE;
 	}
-	isConnected = 1;
+	isConnectedFlag = 1;
 
 	return TRUE;
 }
@@ -466,7 +466,7 @@ void initIsocFrames(void) {
 */
 
 
-void magicDMA(void) {
+void setupDMA(void) {
 	int i;
 	//allocate source data usb ram
 	
@@ -645,7 +645,7 @@ int main(void)
 	c = EOF;
 	
 	
-	magicDMA();
+	setupDMA();
 	//logdd();
 	
 	// echo any character received (do USB stuff in interrupt)

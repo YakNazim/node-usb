@@ -6,8 +6,8 @@ BINARYS=$(SOURCES:.c=)
 
 all: $(BINARYS) 
 
-$(BINARYS): $(SOURCES)
-	$(CC) $@.c -o $@
+$(BINARYS):
+	$(CC) -g $@.c -o $@
 
 clean:
 	rm -f $(BINARYS) 
