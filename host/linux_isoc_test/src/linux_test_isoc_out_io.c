@@ -138,6 +138,8 @@ int reapISOC_URB(int fd) {
 			//printf("myURB2 is null...\n");
 		} else {
 			/*
+			 Note: DONT REAP URBS FOR ISOC OUT ENDPOINTS 
+			 
 			ret = ioctl(fd, USBDEVFS_DISCARDURB, mostRecentReapedURBPtr);
 			printf("Ret after discarding URB is %d", ret);
 			ret = 0;

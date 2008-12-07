@@ -26,7 +26,7 @@ LINKFILE	= lpc2148-rom.ld
 CSRCS	= halsys.c printf.c console.c
 OBJS 	= crt.o $(CSRCS:.c=.o)
 
-EXAMPLES = hid serial msc custom serial_dave serial_dave_isoc_out isoc_dma_sample isoc_in_dma_sample isoc_out_dma_sample isoc_out_nondma_sample
+EXAMPLES = hid serial msc custom serial_dave serial_dave_isoc_out isoc_dma_sample isoc_in_dma_sample isoc_in_nondma_sample isoc_out_dma_sample isoc_out_nondma_sample
 
 all: depend $(EXAMPLES)
 
@@ -35,6 +35,7 @@ serial:	$(OBJS) main_serial.o serial_fifo.o armVIC.o $(LIBNAME).a
 isoc_out_dma_sample: $(OBJS) isoc_out_dma_sample.o armVIC.o $(LIBNAME).a
 isoc_out_nondma_sample: $(OBJS) isoc_out_nondma_sample.o armVIC.o $(LIBNAME).a
 isoc_in_dma_sample: $(OBJS) isoc_in_dma_sample.o armVIC.o $(LIBNAME).a
+isoc_in_nondma_sample: $(OBJS) isoc_in_nondma_sample.o armVIC.o $(LIBNAME).a
 isoc_dma_sample: $(OBJS) isoc_dma_sample.o armVIC.o $(LIBNAME).a
 serial_dave:    $(OBJS) main_serial_dave.o serial_fifo.o armVIC.o $(LIBNAME).a
 serial_dave_isoc_out:   $(OBJS) main_serial_dave_isoc_out.o serial_fifo.o armVIC.o $(LIBNAME).a
