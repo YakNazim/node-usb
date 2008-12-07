@@ -3,7 +3,14 @@
 
 #include "type.h"
 #include "debug.h"
+#include "usbhw_lpc.h"
 
+#ifdef LPC214x
+#include "lpc214x.h"
+#endif
+#ifdef LPC23xx
+#include "lpc23xx.h"
+#endif
 
 #define EP2IDX(bEP) ((((bEP)&0xF)<<1)|(((bEP)&0x80)>>7))
 
@@ -42,5 +49,6 @@ void USBEnableDMAForEndpoint(const U8 bEndpointNumber) ;
 void USBDisableDMAForEndpoint(const U8 bEndpointNumber);
 
 void USBDebugDMADescriptor(U32 dd[5]);
+int USBHwISOCEPRead(U8 bEP, U8 *pbBuf, int iMaxLen);
 
 #endif /*ISOC_H_*/

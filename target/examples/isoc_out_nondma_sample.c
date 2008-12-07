@@ -52,22 +52,16 @@
 #define ISOC_OUT_EP     0x06
 #define ISOC_IN_EP      0x83
 
-#define MAX_PACKET_SIZE	128
+#define MAX_PACKET_SIZE	1023
 
 #define LE_WORD(x)		((x)&0xFF),((x)>>8)
 
-#define NUM_ISOC_FRAMES 3
-#define BYTES_PER_ISOC_FRAME 128
 
-#define ISOC_OUTPUT_DATA_BUFFER_SIZE (1024 * NUM_ISOC_FRAMES)
+#define ISOC_OUTPUT_DATA_BUFFER_SIZE 1024
+int gotNewDataLength = 0;
+volatile U8 outputIsocDataBuffer[ISOC_OUTPUT_DATA_BUFFER_SIZE];
 
-__attribute__ ((section (".usbdma"), aligned(4))) volatile U32* udcaHeadArray[32];
 
-__attribute__ ((section (".usbdma"), aligned(4))) volatile U32 outputDmaDescriptor[5];
-__attribute__ ((section (".usbdma"), aligned(4))) U32 outputIsocFrameArray[NUM_ISOC_FRAMES];
-__attribute__ ((section (".usbdma"), aligned(4))) volatile U8 outputIsocDataBuffer[ISOC_OUTPUT_DATA_BUFFER_SIZE];
-
-U16 commonIsocFrameNumber = 1;
 
 U8 isConnectedFlag = 0;
 int qq = 0;
@@ -128,7 +122,7 @@ static const U8 abDescriptors[] = {
 	ISOC_OUT_EP,				// bEndpointAddress
 	0x0D,					    // bmAttributes = isoc, syncronous, data endpoint
 	LE_WORD(MAX_PACKET_SIZE),	// wMaxPacketSize
-	0x09,						// bInterval	
+	0x01,						// bInterval	
 	
 	// data EP OUT
 	0x07,
@@ -234,49 +228,6 @@ void USBIntHandler(void)
 }
 
 
-U8 tempt = 0;
-
-void resetDMATransfer(
-		const U8 endpointNumber,
-		volatile U32 *dmaDescriptor,
-		U32 *isocFrameArray,
-		const U32 numIsocFrames, 
-		const U32 bytesPerIsocFrame,
-		U16 *isocFrameNumber,
-		const U32 maxPacketSize,
-		void *dataBuffer
-		) ;
-
-void resetDMATransfer(
-		const U8 endpointNumber,
-		volatile U32 *dmaDescriptor,
-		U32 *isocFrameArray,
-		const U32 numIsocFrames, 
-		const U32 bytesPerIsocFrame,
-		U16 *isocFrameNumber,
-		const U32 maxPacketSize,
-		void *dataBuffer
-		) 
-{
-	int i;
-	USBDisableDMAForEndpoint(endpointNumber);
-
-	tempt = ((U8*)dataBuffer)[0];
-	for(i = 0; i < maxPacketSize * numIsocFrames; i++ ) {
-		((U8*)dataBuffer)[i] = 0;
-	}
-	
-	USBInitializeISOCFrameArray(isocFrameArray, numIsocFrames, *isocFrameNumber, bytesPerIsocFrame);
-	*isocFrameNumber += numIsocFrames;
-
-	USBSetupDMADescriptor(dmaDescriptor, NULL, 1, maxPacketSize, numIsocFrames, dataBuffer, isocFrameArray);
-	
-	//set DDP pointer for endpoint so it knows where first DD is located, manual section 13.1
-	//set index of isoc DDP to point to start DD
-	USBSetHeadDDForDMA(endpointNumber, udcaHeadArray, dmaDescriptor);
-
-	USBEnableDMAForEndpoint(endpointNumber);
-}
 
 
 /**
@@ -291,26 +242,13 @@ void resetDMATransfer(
 
  */
 
-int cc = 0;
-int didOutputInit = 0;
-int resetCount = 0;
+
 void USBFrameHandler(U16 wFrame)
 {
-	if( cc < 4000 ) {
-		cc++;
-	}
-	
-	int outputR = (((outputDmaDescriptor[3] >> 1) & 0x0F ) == 2);
-	
-	if (cc >= 4000 && (outputR || !didOutputInit)) {
-		//normal completion
-		if ( !didOutputInit) {
-			didOutputInit = 1;
-		}
-
-		resetCount++;
-		resetDMATransfer(ISOC_OUT_EP, outputDmaDescriptor, outputIsocFrameArray,
-				NUM_ISOC_FRAMES, BYTES_PER_ISOC_FRAME, &commonIsocFrameNumber, MAX_PACKET_SIZE, outputIsocDataBuffer);
+	//int i;
+	int iLen = USBHwISOCEPRead(ISOC_OUT_EP, outputIsocDataBuffer, sizeof(outputIsocDataBuffer));
+	if (iLen > 0) {
+		gotNewDataLength = iLen;
 	}
 }
 
@@ -341,19 +279,6 @@ static void USBDevIntHandler(U8 bDevStatus)
 
 
 
-void logLastIsocOutTransferData(void) {
-	int i;
-	DBG("resetCount=%d\n", resetCount);
-	DBG("tempt=%d\n", tempt);
-	DBG("Output Buffer: ");
-	for( i = 0; i < 4; i++ ) {
-		DBG("0x%X ", outputIsocDataBuffer[i]);
-	}
-
-	DBG("\nUSBDebugDMADescriptor(outputDmaDescriptor)\r\n");
-	USBDebugDMADescriptor(outputDmaDescriptor);
-}
-
 
 /*************************************************************************
 	main
@@ -361,7 +286,7 @@ void logLastIsocOutTransferData(void) {
 **************************************************************************/
 int main(void)
 {
-	int c, i, x2=0;
+	int c, i;
 	
 	// PLL and MAM
 	HalSysInit();
@@ -394,9 +319,6 @@ int main(void)
 	// register device event handler
 	USBHwRegisterDevIntHandler(USBDevIntHandler);
 	
-	USBInitializeUSBDMA(udcaHeadArray);
-	//USBEnableDMAForEndpoint(ISOC_OUT_EP);
-	
 	
 	DBG("Starting USB communication\n");
 
@@ -420,23 +342,27 @@ int main(void)
 	int x = 0;
 	c = EOF;
 	
+	
+	
 	for(i = 0; i < ISOC_OUTPUT_DATA_BUFFER_SIZE; i++ ) {
 		outputIsocDataBuffer[i] = 0;
 	}
 	
-	int cnt = 0;
 	const int interval = 100000;
 	// echo any character received (do USB stuff in interrupt)
 	
 	for(;;) {
-		x++;
-		x2++;
-		if( x2 >= 900000 ) {
-			//logdd();
-			logLastIsocOutTransferData();
-			x2 = 0;
+		if( gotNewDataLength > 0 ) {
+			int len = gotNewDataLength;
+			gotNewDataLength = 0;
+			DBG(" : ");
+			for (i = 0; i <len & i < 3; i++) {
+				DBG("0x%X ", outputIsocDataBuffer[i]);
+			}
 		}
 		
+		x++;
+
 		if (x == interval) {
 			qq++;
 			

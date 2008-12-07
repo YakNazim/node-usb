@@ -158,3 +158,106 @@ void USBDebugDMADescriptor(U32 dd[5]) {
 }
 
 
+/** FIXME copied from usbhw_lpc.c, don't duplicate
+    Local function to wait for a device interrupt (and clear it)
+        
+    @param [in] dwIntr      Bitmask of interrupts to wait for   
+ */
+static void Wait4DevInt(U32 dwIntr)
+{
+    // wait for specific interrupt
+    while ((USBDevIntSt & dwIntr) != dwIntr);
+    // clear the interrupt bits
+    USBDevIntClr = dwIntr;
+}
+
+/** FIXME copied from usbhw_lpc.c, don't duplicate
+    Local function to send a command to the USB protocol engine
+        
+    @param [in] bCmd        Command to send
+ */
+static void USBHwCmd(U8 bCmd)
+{
+    // clear CDFULL/CCEMTY
+    USBDevIntClr = CDFULL | CCEMTY;
+    // write command code
+    USBCmdCode = 0x00000500 | (bCmd << 16);
+    Wait4DevInt(CCEMTY);
+}
+
+
+
+int USBHwISOCEPRead(U8 bEP, U8 *pbBuf, int iMaxLen)
+{
+    int i, idx,q;
+    U32 dwData, dwLen;
+
+
+    //Wait4DevInt(CDFULL);
+
+
+    idx = EP2IDX(bEP);
+
+    //USBHwCmd(CMD_EP_SELECT | idx);
+
+    // set read enable bit for specific endpoint
+    USBCtrl = RD_EN | ((bEP & 0xF) << 2);
+
+
+    // wait for PKT_RDY
+  /*  
+    q = 0;
+    do {
+        dwLen = USBRxPLen;
+        q++;
+    } while ((dwLen & PKT_RDY) == 0 && q < 100 );
+*/    
+
+
+    asm volatile("nop\n");
+
+    dwLen = USBRxPLen;
+    if( (dwLen & PKT_RDY) == 0 ) {
+        USBCtrl = 0;// make sure RD_EN is clear
+        return(-1);
+    }
+
+    // packet valid?
+    if ((dwLen & DV) == 0) {
+        USBCtrl = 0;// make sure RD_EN is clear
+        return -1;
+    }
+
+    // get length
+    dwLen &= PKT_LNGTH_MASK;
+
+    // get data
+    dwData = 0;
+    for (i = 0; i < dwLen; i++) {
+        if ((i % 4) == 0) {
+            dwData = USBRxData;
+        }
+        if ((pbBuf != NULL) && (i < iMaxLen)) {
+            pbBuf[i] = dwData & 0xFF;
+        }
+        dwData >>= 8;
+    }
+
+    // make sure RD_EN is clear
+    USBCtrl = 0;
+
+    // select endpoint and clear buffer
+    USBHwCmd(CMD_EP_SELECT | idx);
+    USBHwCmd(CMD_EP_CLEAR_BUFFER);
+
+    return dwLen;
+}
+
+
+
+
+
+
+
+
+
