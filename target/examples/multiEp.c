@@ -1,5 +1,11 @@
 
 /*
+ * multiEp.c
+ * ------------------------------
+ * example to test multiple endpoint types in one configuration.
+ */
+
+/*
   LPCUSB, an USB device driver for LPC microcontrollers   
   Copyright (C) 2006 Bertrik Sikken (bertrik@sikken.nl)
 
@@ -54,11 +60,17 @@
 #include "usbapi.h"
 #include "usbhw_lpc.h"
 
+#include "serial_fifo.h"
+
 #define DEBUG_LED_ON(x)         IOCLR0 = (1 << x);
 #define DEBUG_LED_OFF(x)        IOSET0 = (1 << x);
 
 /* serial port              */
-#define BAUD_RATE               115200
+#define BAUD_RATE                 115200
+
+/* sizes */
+#define BULK_FIFO_SIZE            128
+
 
 /* Define endpoints for usb */
 /* Interrupt                */
@@ -110,6 +122,7 @@
 #define EP2IDX(bEP) ((((bEP)&0xF)<<1)|(((bEP)&0x80)>>7))
 
 #define NUM_ISOC_FRAMES 4
+#define BYTES_PER_ISOC_FRAME 1023
 #define NUM_DMA_DESCRIPTORS 6
 #define ISOC_DATA_BUFFER_SIZE (1024*6)
 
@@ -118,6 +131,18 @@ __attribute__ ((section (".usbdma"), aligned(128))) U32 isocFrameArray[NUM_ISOC_
 __attribute__ ((section (".usbdma"), aligned(128))) volatile U32 dmaDescriptorArray[NUM_DMA_DESCRIPTORS][5];
 __attribute__ ((section (".usbdma"), aligned(128))) U8 isocDataBuffer[ISOC_DATA_BUFFER_SIZE];
 
+
+// bulk data fifos.
+
+static fifo_t bulk_txfifo;
+static fifo_t bulk_rxfifo;
+
+static U8 bulk_txdata[BULK_FIFO_SIZE];
+static U8 bulk_rxdata[BULK_FIFO_SIZE];
+
+static U8 bulkBuf[MAX_PACKET_SIZE_BULK];
+
+static volatile BOOL fChainDone;
 static volatile BOOL fBulkInBusy;
 
 // forward declaration of interrupt handler
@@ -354,8 +379,104 @@ void USBIntHandler(void)
     USBHwISR();
     //DBG("z");
     VICVectAddr = 0x00;    // dummy write to VIC to signal end of ISR
+    DBG("Exit int\n");
     ISR_EXIT();
 }
+
+/**
+	Local function to handle incoming bulk data
+		
+	@param [in] bEP
+	@param [in] bEPStatus
+ */
+static void BulkOut(U8 bEP, U8 bEPStatus)
+{
+	int i, iLen;
+	int j = 0;
+
+	DBG ("\nBulk Out...\n");
+
+	if (fifo_free(&bulk_rxfifo) < MAX_PACKET_SIZE_BULK) {
+		// may not fit into fifo
+		return;
+	}
+
+	// get data from USB into intermediate buffer (bulk_rxfifo)
+	iLen = USBHwEPRead(bEP, bulkBuf, sizeof(bulkBuf));
+	for (i = 0; i < iLen; i++) {
+		// put into FIFO
+	/* 	if (!fifo_put(&bulk_rxfifo, bulkBuf[i])) { */
+/* 			// overflow... :( */
+/* 			ASSERT(FALSE); */
+/* 			break; */
+/* 		} */
+ 	        // copy rxfifo to txfifo? seems right for echo case...
+		if (!fifo_put(&bulk_txfifo, bulkBuf[i])) {
+			// overflow... :(
+			ASSERT(FALSE);
+			break;
+		} else {
+		    DBG("%c",bulkBuf[i]);
+		}
+	
+	}
+}
+
+
+
+/**
+	Sends the next packet in chain of packets to the host
+		
+	@param [in] bEP
+	@param [in] bEPStatus
+ */
+static void SendNextBulkIn(U8 bEP, BOOL fFirstPacket)
+{
+	int iLen;
+
+	// this transfer is done
+	fBulkInBusy = FALSE;
+	
+	// first packet?
+	if (fFirstPacket) {
+		fChainDone = FALSE;
+	}
+
+	// last packet?
+	if (fChainDone) {
+		return;
+	}
+	
+	// get up to MAX_PACKET_SIZE bytes from transmit FIFO into intermediate buffer
+	for (iLen = 0; iLen < MAX_PACKET_SIZE_BULK; iLen++) {
+		if (!fifo_get(&bulk_txfifo, &bulkBuf[iLen])) {
+			break;
+		}
+	}
+	
+	// send over USB
+	USBHwEPWrite(bEP, bulkBuf, iLen);
+	fBulkInBusy = TRUE;
+
+	// was this a short packet?
+	if (iLen < MAX_PACKET_SIZE_BULK) {
+		fChainDone = TRUE;
+	}
+}
+
+
+/**
+	Local function to handle outgoing bulk data
+		
+	@param [in] bEP
+	@param [in] bEPStatus
+ */
+static void BulkIn(U8 bEP, U8 bEPStatus)
+{
+    DBG("\nBulk in...\n");
+	SendNextBulkIn(bEP, FALSE);
+}
+
 
 
 // print out hex char
@@ -380,10 +501,29 @@ char hexch(const unsigned char x) {
    (as required by the windows usbser.sys driver).
 
 */
+/* static void USBFrameHandler(U16 wFrame) */
+/* { */
+/* 	if (!fBulkInBusy && (fifo_avail(&txfifo) != 0)) { */
+/* 		// send first packet */
+/* 		SendNextBulkIn(BULK_IN_EP, TRUE); */
+/* 	} */
+/* } */
+
+
+/*
+ *	Initialises the bulk port.
+ */
+void bulk_init(void)
+{
+	fifo_init(&bulk_txfifo, bulk_txdata);
+	fifo_init(&bulk_rxfifo, bulk_rxdata);
+	fBulkInBusy = FALSE;
+	fChainDone = TRUE;
+}
+
 
 /**
-   USB device status handler
-        
+   USB device status handler       
    Resets state machine when a USB reset is received.
 */
 static void USBDevIntHandler(U8 bDevStatus)
@@ -392,6 +532,7 @@ static void USBDevIntHandler(U8 bDevStatus)
         fBulkInBusy = FALSE;
     }
 }
+
 
 char toHex(int x) {
     if( x <= 9 ) {
@@ -409,7 +550,10 @@ char toHex(int x) {
 **************************************************************************/
 int main(void)
 {
-    int c;
+
+    ///////////////////////////////////////////////////
+    // PRELUDE
+    ///////////////////////////////////////////////////
         
     // PLL and MAM
     HalSysInit();
@@ -432,15 +576,16 @@ int main(void)
 
     // register endpoint handlers
     USBHwRegisterEPIntHandler(INT_IN_EP, NULL);
-        
-    //USBHwRegisterEPIntHandler(ISOC_OUT_EP, IsocOut);
+    USBHwRegisterEPIntHandler(BULK_IN_EP, BulkIn);
+    USBHwRegisterEPIntHandler(BULK_OUT_EP, BulkOut);
+
+    // USBHwRegisterEPIntHandler(ISOC_OUT_EP, IsocOut);
                 
     // register frame handler
-    //USBHwRegisterFrameHandler(USBFrameHandler);
+    // USBHwRegisterFrameHandler(USBFrameHandler);
         
     // register device event handler
     USBHwRegisterDevIntHandler(USBDevIntHandler);
-
 
     DBG("Starting USB communication\n");
 
@@ -460,11 +605,35 @@ int main(void)
         
     // connect to bus
     USBHwConnect(TRUE);
-        
+
+
+    /////////////////////////////////////////////
+    // FUNCTION
+    /////////////////////////////////////////////
+
+    // int
+
+    // bulk   - echo
+    bulk_init();
+
+
+
+    // isoc A - regular - Broadcast numbers
+
+    // isoc B - dma -echo
+
+    // isoc C - dma
+    
+
+
+    //////////////////////////////////////////
+    // DEBUG LIGHTS
+    //////////////////////////////////////////
+
+    int c;
     int x = 0;
     int ch  ='a';
     c = EOF;
-        
         
     // echo any character received (do USB stuff in interrupt)
     while (1) {

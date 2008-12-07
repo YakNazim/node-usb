@@ -205,7 +205,7 @@ void USBHwRegisterEPIntHandler(U8 bEP, TFnEPIntHandler *pfnHandler)
 {
     int idx;
     
-    idx = EP2IDX(bEP);
+    idx = EP2IDX(bEP); 
 
     ASSERT(idx<32);
 

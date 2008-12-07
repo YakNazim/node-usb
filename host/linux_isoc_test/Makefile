@@ -4,7 +4,7 @@ CC = gcc
 SOURCES=$(wildcard ./src/*.c)
 BINARYS=$(SOURCES:.c=)
 
-all: $(BINARYS)
+all: $(BINARYS) 
 
 $(BINARYS):
 	$(CC) -g $@.c -o $@
