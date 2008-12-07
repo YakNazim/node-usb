@@ -183,7 +183,6 @@ void writeURBOutISOC(int fd, struct usbdevfs_urb *myOutURB, int urbStructSize, c
 		totalIsocOutBytesSent += bufferLength;
 	}
     printf("\n");
-    //sleep(1);
 }
 
 

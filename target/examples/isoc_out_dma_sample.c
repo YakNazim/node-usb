@@ -52,20 +52,19 @@
 #define ISOC_OUT_EP     0x06
 #define ISOC_IN_EP      0x83
 
-#define MAX_PACKET_SIZE	128
+#define MAX_PACKET_SIZE	1023
 
 #define LE_WORD(x)		((x)&0xFF),((x)>>8)
 
 #define NUM_ISOC_FRAMES 3
-#define BYTES_PER_ISOC_FRAME 128
+#define BYTES_PER_ISOC_FRAME 1023
 
 #define ISOC_OUTPUT_DATA_BUFFER_SIZE (1024 * NUM_ISOC_FRAMES)
 
 __attribute__ ((section (".usbdma"), aligned(4))) volatile U32* udcaHeadArray[32];
-
 __attribute__ ((section (".usbdma"), aligned(4))) volatile U32 outputDmaDescriptor[5];
-__attribute__ ((section (".usbdma"), aligned(4))) U32 outputIsocFrameArray[NUM_ISOC_FRAMES];
-__attribute__ ((section (".usbdma"), aligned(4))) volatile U8 outputIsocDataBuffer[ISOC_OUTPUT_DATA_BUFFER_SIZE];
+__attribute__ ((section (".usbdma"), aligned(128))) U32 outputIsocFrameArray[NUM_ISOC_FRAMES];
+__attribute__ ((section (".usbdma"), aligned(128))) volatile U8 outputIsocDataBuffer[ISOC_OUTPUT_DATA_BUFFER_SIZE];
 
 U16 commonIsocFrameNumber = 1;
 
@@ -128,7 +127,7 @@ static const U8 abDescriptors[] = {
 	ISOC_OUT_EP,				// bEndpointAddress
 	0x0D,					    // bmAttributes = isoc, syncronous, data endpoint
 	LE_WORD(MAX_PACKET_SIZE),	// wMaxPacketSize
-	0x09,						// bInterval	
+	0x01,						// bInterval	
 	
 	// data EP OUT
 	0x07,
@@ -258,13 +257,7 @@ void resetDMATransfer(
 		void *dataBuffer
 		) 
 {
-	int i;
 	USBDisableDMAForEndpoint(endpointNumber);
-
-	tempt = ((U8*)dataBuffer)[0];
-	for(i = 0; i < maxPacketSize * numIsocFrames; i++ ) {
-		((U8*)dataBuffer)[i] = 0;
-	}
 	
 	USBInitializeISOCFrameArray(isocFrameArray, numIsocFrames, *isocFrameNumber, bytesPerIsocFrame);
 	*isocFrameNumber += numIsocFrames;
@@ -291,27 +284,35 @@ void resetDMATransfer(
 
  */
 
-int cc = 0;
+int delay = 0;
 int didOutputInit = 0;
 int resetCount = 0;
+int nextFhFlag = 0;
 void USBFrameHandler(U16 wFrame)
 {
-	if( cc < 4000 ) {
-		cc++;
+	if( delay < 4000 ) {
+		delay++;
 	}
 	
 	int outputR = (((outputDmaDescriptor[3] >> 1) & 0x0F ) == 2);
 	
-	if (cc >= 4000 && (outputR || !didOutputInit)) {
-		//normal completion
-		if ( !didOutputInit) {
-			didOutputInit = 1;
-		}
-
-		resetCount++;
-		resetDMATransfer(ISOC_OUT_EP, outputDmaDescriptor, outputIsocFrameArray,
-				NUM_ISOC_FRAMES, BYTES_PER_ISOC_FRAME, &commonIsocFrameNumber, MAX_PACKET_SIZE, outputIsocDataBuffer);
+	if (delay >= 4000 && (outputR || !didOutputInit)) {
+		if( !nextFhFlag ) {
+			nextFhFlag = 1;
+		} else {
+			nextFhFlag = 0;
+		
+			//normal completion
+			if ( !didOutputInit) {
+				didOutputInit = 1;
+			}
+	
+			resetCount++;
+			resetDMATransfer(ISOC_OUT_EP, outputDmaDescriptor, outputIsocFrameArray,
+					NUM_ISOC_FRAMES, BYTES_PER_ISOC_FRAME, &commonIsocFrameNumber, MAX_PACKET_SIZE, outputIsocDataBuffer);
+			}
 	}
+	
 }
 
 

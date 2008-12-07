@@ -43,9 +43,12 @@ mdh 0x0 100
 #flash write_image /home/paradox/school/CS506_Project_LPCUSB/lpcusb_target_dma/examples/serial_dave.hex 0x0
 #
 #flash write_image isoc_in_dma_sample.hex 0x0
-#flash write_image isoc_out_dma_sample.hex 0x0
+flash write_image isoc_out_dma_sample.hex 0x0
 #flash write_image isoc_out_nondma_sample.hex 0x0
-flash write_image isoc_in_nondma_sample.hex 0x0
+#flash write_image isoc_in_nondma_sample.hex 0x0
+#
+#flash write_image /home/paradox/school/CS506_Project_LPCUSB/lpcusb_target_dma/examples/serial_dave_isoc_out.hex 0x0
+
 #
 #flash write_image /home/paradox/school/CS506_Project_LPCUSB/lpcusb_target_dma/examples/serial_dave_isoc_out.hex 0x0
 #flash write_image /home/paradox/psas/freertos/imucalibrationmotorcontrol/imucalmain.bin 0x0
