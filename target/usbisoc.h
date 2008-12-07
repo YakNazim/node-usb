@@ -2,6 +2,7 @@
 #define ISOC_H_
 
 #include "type.h"
+#include "debug.h"
 
 
 #define EP2IDX(bEP) ((((bEP)&0xF)<<1)|(((bEP)&0x80)>>7))
@@ -39,5 +40,7 @@ void USBInitializeUSBDMA(volatile U32* udcaHeadArray[32]);
 void USBSetHeadDDForDMA(const U8 bEp, volatile U32* udcaHeadArray[32], volatile const U32 *dmaDescriptorPtr);
 void USBEnableDMAForEndpoint(const U8 bEndpointNumber) ;
 void USBDisableDMAForEndpoint(const U8 bEndpointNumber);
+
+void USBDebugDMADescriptor(U32 dd[5]);
 
 #endif /*ISOC_H_*/

@@ -101,3 +101,60 @@ void USBInitializeUSBDMA(volatile U32* udcaHeadArray[32]) {
 	}
 	USBUDCAH = (U32) udcaHeadArray;
 }
+
+
+
+
+void USBDebugDMADescriptor(U32 dd[5]) {
+	int i;
+	DBG	("---------------------------------\n");
+	//for(i = 0; i < 32; i++ ) {
+	//	DBG("ucdaHeadArray[%d] = %X\n", i, udcaHeadArray[i]);
+	//}
+	U32 dd3 = dd[3];
+	
+	DBG("dd[0] = 0x%X\n", dd[0]);
+	DBG("dd[1] = 0x%X\n", dd[1]);
+	DBG("dd[2] = 0x%X\n", dd[2]);
+	DBG("dd[3] = 0x%X\n", dd[3]);
+	DBG("dd[4] = 0x%X\n", dd[4]);
+	
+	if( dd3 & 0x01 ) {
+		DBG("Retired\n");
+	} else {
+		DBG("Not Retired\n");
+	}
+	
+	switch( (dd3 >> 1) & 0x0F ) {
+	case 0:
+		DBG("Not serviced\n");
+		break;
+	case 1:
+		DBG("Being serviced\n");
+			break;
+	case 2:
+		DBG("Normal completion\n");
+			break;
+	case 3:
+		DBG("data underrun\n");
+			break;
+	case 8:
+		DBG("data overrun \n");
+			break;
+	case 9:
+		DBG("system error\n");
+			break;
+	}
+	
+	DBG("Present dma count %d\n", (dd3 >> 16));
+	/*
+	DBG("isocFrameArray = 0x%X\n", inputIsocFrameArray);
+	DBG("isocFrameArray[0] = 0x%X\n", inputIsocFrameArray[0]);
+	DBG("isocFrameArray[1] = 0x%X\n", inputIsocFrameArray[1]);
+	DBG("isocFrameArray[2] = 0x%X\n", inputIsocFrameArray[2]);
+	DBG("isocFrameArray[3] = 0x%X\n", inputIsocFrameArray[3]);
+	DBG("isocFrameArray[4] = 0x%X\n", inputIsocFrameArray[4]);
+	*/
+}
+
+
