@@ -33,7 +33,7 @@
 
 
 #define BULK_OUT_EP               0x02
-#define BULK_IN_EP                0x82
+#define BULK_IN_EP                0x85
 
 
 
@@ -101,61 +101,73 @@ int main(void) {
     /*
      * functions
      */
-  
+    int j;
+    for(j = 0; j < 5; j++ ) {
     
-    memset(infobuff_bulk_in, 0, BUFFERSIZE_BULK);
-    strncpy(infobuff_bulk_in, "BADCAB", BUFFERSIZE_BULK);
+    	memset(infobuff_bulk_in, 0, BUFFERSIZE_BULK);
+		strncpy(infobuff_bulk_in, "BADCAB", BUFFERSIZE_BULK);
+
+		memset(infobuff_bulk_out, 0, BUFFERSIZE_BULK);
+		strncpy(infobuff_bulk_out, "ABCD", BUFFERSIZE_BULK);
+
+		/* set up data buffer(s) */
+		char let = 'a';
+		for (q = 0; q <= maxData; q++) {
+			infobuff_bulk_out[q] = let;
+			let++;
+			if (let > 'z') {
+				let = 'a';
+			}
+		}
+		infobuff_bulk_out[maxData] = '\0';
+		infobuff_bulk_out[maxData-1] = 'D';
+
+		/* write data to device */
+		bulk_s.ep = BULK_OUT_EP;
+		bulk_s.len = BULK_DATA_MAX;
+		bulk_s.timeout = BULK_TIMEOUT;
+		bulk_s.data = &infobuff_bulk_out[0];
+
+		ret = ioctl(fd, USBDEVFS_BULK, &bulk_s);
+
+		printf("ret from ioctl after bulk output transfer is %d\n", ret);
+		if (ret == -1) {
+			printf("Error %d string is: %s\n", errno, strerror(errno));
+		}
+		printf("Total bulk out transfers is %d\n", j+1);
+		sleep(1);
+
+		int k;
+		for (k = 0;k < 6;k++) {
+			/* read data from device */
+			bulk_s.ep = BULK_IN_EP;
+			bulk_s.len = BULK_DATA_MAX;
+			bulk_s.timeout = BULK_TIMEOUT;
+			bulk_s.data = &infobuff_bulk_in[0];
+
+			ret = ioctl(fd, USBDEVFS_BULK, &bulk_s);
+			printf("ret from ioctl after bulk input transfer is %d\n", ret);
+			if (ret > 0) {
+				printf("Data read was %d\n", infobuff_bulk_in[0]);
+				for (i = 0; i < ret; i++) {
+					printf("%c", infobuff_bulk_in[i]);
+				}
+				printf("\n");
+				break;
+			}
+			if (ret == -1) {
+				printf("Error %d string is: %s\n", errno, strerror(errno));
+				break;
+			}
+			usleep(100000);
+		}
+
+		sleep(1);
+	}
     
-    memset(infobuff_bulk_out, 0, BUFFERSIZE_BULK);
-    strncpy(infobuff_bulk_out, "ABCD", BUFFERSIZE_BULK);
     
-    /* set up data buffer(s) */
-    char let = 'a';
-    for(q = 0; q <= maxData; q++) {
-        infobuff_bulk_out[q] = let;
-        let++;
-        if( let > 'z' ) {
-            let = 'a';
-        }
-    }
-    infobuff_bulk_out[maxData]      = '\0';
-    infobuff_bulk_out[maxData-1]    = 'D';
-
-    /* write data to device */
-    bulk_s.ep              = BULK_OUT_EP;  
-    bulk_s.len             = BULK_DATA_MAX;
-    bulk_s.timeout         = BULK_TIMEOUT; 
-    bulk_s.data            = &infobuff_bulk_out[0]; 
-
-    ret = ioctl(fd, USBDEVFS_BULK, &bulk_s);
-        
-    printf("ret from ioctl after bulk output transfer is %d\n", ret);
-    if( ret == -1 ) {
-        printf("Error %d string is: %s\n", errno, strerror(errno));
-    }
-                
-
-    /* read data from device */
-    bulk_s.ep              = BULK_IN_EP;  
-    bulk_s.len             = BULK_DATA_MAX;
-    bulk_s.timeout         = BULK_TIMEOUT; 
-    bulk_s.data            = &infobuff_bulk_in[0]; 
-
-
-    ret = ioctl(fd, USBDEVFS_BULK, &bulk_s);
-    printf("ret from ioctl after bulk input transfer is %d\n", ret);
-    if( ret > 0 ) {
-        printf("Data read was %d\n", infobuff_bulk_in[0]);
-        for(i = 0; i < ret; i++ ) {
-            printf("%c", infobuff_bulk_in[i]);
-        }
-        printf("\n");
-    }
-    if (ret == -1) {
-        printf("Error %d string is: %s\n", errno, strerror(errno));
-    }
-
-
+    
+    
     /*
      * cleanup 
      */
@@ -168,7 +180,7 @@ int main(void) {
     } else {
         printf("Released interface %d\n", interfaceToClaim);
     }
-
+    
 
     close(fd);
 
