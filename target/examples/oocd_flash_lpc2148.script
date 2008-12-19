@@ -23,7 +23,7 @@ reg cpsr 0x13
 
 # mww: Memory word write
 # Set the MEMMAP reg to point to flash (avoids problems while trying to
-flash)
+#flash)
 mww 0xE01FC040 1
 
 ###
@@ -94,7 +94,8 @@ mdh 0x0 30
 # pause
 sleep 20
 
-reset run_and_halt
+#reset run_and_halt
+reset
 
 # pause
 sleep 10
