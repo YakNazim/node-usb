@@ -25,7 +25,7 @@ uint32_t totalIsocOutBytesSent = 0;
 
 
 //Variables for ISOC input
-#define URB_ARR_COUNT 1
+#define URB_ARR_COUNT 2
 struct usbdevfs_urb *myInputURBArray[URB_ARR_COUNT];
 int urbIdArray[URB_ARR_COUNT];
 
@@ -342,32 +342,24 @@ int main(void) {
 			while (reapISOC_URB(fd) < 0) {
 			}
 
-			printf("Reaped urb ep is %X\n", mostRecentReapedURBPtr->endpoint);
-			if (mostRecentReapedURBPtr->endpoint == ISOC_IN_ENDPOINT) {
-				//writeURBInISOC(fd, myInputURBArray[i], &urbIdArray[i], isocInputURBStructSize);
+			switch (mostRecentReapedURBPtr->endpoint) {
+			case ISOC_IN_ENDPOINT:
+				writeURBInISOC(fd, myInputURBArray[i], &urbIdArray[i], isocInputURBStructSize);
+				break;
+			}
+			time_t now = time(NULL);
+
+			uint8_t ledVal = now % 2;
+			if( ledVal != isocOutputBuffer[0] ) {
+				isocOutputBuffer[0] = ledVal;
+				writeURBOutISOC(fd, myOutURB, isocOutputURBStructSize, isocOutputBuffer, &isocOutputUniqueID, 1);
 			}
 
-			timeDelta = time(NULL) - startTime;
+			timeDelta = now - startTime;
 			if (timeDelta > 0) {
 				long isocInBytesPerSecond = totalIsocInBytesReceived / timeDelta;
 				printf("Bytes/second %d\n", isocInBytesPerSecond);
 			}
-		}
-		
-		time_t now = time(NULL);
-				
-		uint8_t ledVal = now % 2;
-		if( ledVal != isocOutputBuffer[0] ) {
-			isocOutputBuffer[0] = ledVal;
-			 writeURBOutISOC(fd, myOutURB, isocOutputURBStructSize, isocOutputBuffer, &isocOutputUniqueID, 1);
-			 while (reapISOC_URB(fd) < 0) {			 }
-		} else {
-			q--;
-		}
-		
-		
-		for (i = 0; i < URB_ARR_COUNT; i++) {
-			writeURBInISOC(fd, myInputURBArray[i], &urbIdArray[i], isocInputURBStructSize);
 		}
 	}
 	
