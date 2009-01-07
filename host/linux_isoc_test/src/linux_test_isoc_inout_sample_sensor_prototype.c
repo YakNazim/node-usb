@@ -92,7 +92,6 @@ int findDevice(char *destinationDevicePathLocation, int *deviceNumber) {
 					int readCount = read(fd2, deviceConfigData, 18);
 					if (readCount != 18) {
 						printf("ERROR: Unable to read from device %s\n", deviceOfInterest);
-						exit(-1);
 					} else {
 						printf("Opened device %s\n", deviceOfInterest);
 					}
