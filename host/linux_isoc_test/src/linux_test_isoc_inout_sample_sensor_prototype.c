@@ -161,26 +161,22 @@ void writeURBInISOC(int fd, struct usbdevfs_urb *myInputURB, void *requestUnique
     	myInputURB->iso_frame_desc[i].length = 1023;
     }
     
-	printf("-----------------------------------\n");
-	printf("Writing URB to isoc in...\n");
-	
     ret = ioctl(fd, USBDEVFS_SUBMITURB, myInputURB);
     if (ret == -1) {
 		printf("Error %d while trying to write string to usb device, string is: %s\n", errno, strerror(errno));
 	}  else {
-		printf("Wrote string to device, ret = %d\n", ret);
-		
+		printf("ret %d ", ret);
 
-		printf("myInputURB.status is %d\n", myInputURB->status);
-		printf("myInputURB.flag is %d\n", myInputURB->flags);
-		printf("myInputURB.error_count is %d\n", myInputURB->error_count);
-		printf("myInputURB.number_of_packets is %d\n", myInputURB->number_of_packets);
-		printf("myInputURB.actual_length is %d\n", myInputURB->actual_length);
-		printf("myInputURB.start_frame is %d\n", myInputURB->start_frame);
-		printf("myInputURB.usercontext is %d\n", myInputURB->usercontext);
-		printf("myInputURB->iso_frame_desc[0].actual_length is %d\n", myInputURB->iso_frame_desc[0].actual_length);
-		printf("myInputURB->iso_frame_desc[0].length is %d\n", myInputURB->iso_frame_desc[0].length);
-		printf("myInputURB->iso_frame_desc[0].status is %d\n", myInputURB->iso_frame_desc[0].status);
+		printf("status %d ", myInputURB->status);
+		printf("flag %d ", myInputURB->flags);
+		printf("error_count %d ", myInputURB->error_count);
+		printf("number_of_packets %d ", myInputURB->number_of_packets);
+		printf("actual_length %d ", myInputURB->actual_length);
+		printf("start_frame %d ", myInputURB->start_frame);
+		printf("usercontext %d ", myInputURB->usercontext);
+		printf("iso_frame_desc[0].actual_length %d ", myInputURB->iso_frame_desc[0].actual_length);
+		printf("iso_frame_desc[0].length %d ", myInputURB->iso_frame_desc[0].length);
+		printf("iso_frame_desc[0].status %d\n", myInputURB->iso_frame_desc[0].status);
 		
 		//for (i = 0; i < myOutURB->iso_frame_desc[0].actual_length; i++) {
 			//printf(" 0x%X", ((unsigned char*)myOutURB->buffer)[i]);
@@ -211,16 +207,16 @@ int reapISOC_URB(int fd) {
 				isocInputStartFrame += mostRecentReapedURBPtr->number_of_packets;
 				totalIsocInBytesReceived += mostRecentReapedURBPtr->actual_length;
 				
-				printf("Isoc Input Data Length: %d\n",mostRecentReapedURBPtr->actual_length);
+				printf("Input Length %d ",mostRecentReapedURBPtr->actual_length);
 				uint32_t val;
 				memcpy(&val, mostRecentReapedURBPtr->buffer, 4);
-				printf("ADC val is: %X\n", val);
+				printf("ADC %X ", val);
 				
 				memcpy(&val, mostRecentReapedURBPtr->buffer + 4, 4);
-				printf("Button 1 val is: %X\n", val);
+				printf("Button 1 %X ", val);
 				
 				memcpy(&val, mostRecentReapedURBPtr->buffer + 8, 4);
-				printf("Button 1 val is: %X\n", val);
+				printf("Button 2 %X\n", val);
 				
 				
 				/*
@@ -343,7 +339,6 @@ int main(void) {
 		
 		
 		for (i = 0; i < URB_ARR_COUNT; i++) {
-			printf("===============================================================================\n");
 			while (reapISOC_URB(fd) < 0) {
 			}
 
@@ -354,9 +349,8 @@ int main(void) {
 
 			timeDelta = time(NULL) - startTime;
 			if (timeDelta > 0) {
-				printf("totalIsocInBytesReceived = %d\n", totalIsocInBytesReceived);
 				long isocInBytesPerSecond = totalIsocInBytesReceived / timeDelta;
-				printf("Isoc In Bytes per second is %d\n", isocInBytesPerSecond);
+				printf("Bytes/second %d\n", isocInBytesPerSecond);
 			}
 		}
 		
