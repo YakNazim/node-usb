@@ -1,5 +1,4 @@
 #include <usb.h>
-#include <sys/capability.h>
 #include <linux/usbdevice_fs.h>
 #include <asm/byteorder.h>
 #include <stdio.h>
