@@ -46,7 +46,6 @@
 #include "usbhw_lpc.h"
 #include "usbisoc.h"
 
-#include "isoc_ep.h"
 
 #define BAUD_RATE	115200
 
@@ -54,13 +53,16 @@
 #define ISOC_OUT_EP     0x06
 #define ISOC_IN_EP      0x83
 
-#define MAX_PACKET_SIZE	1023
+// using two endpoints, the maximum rate will be 4096000 bits/sec
+// based on 1 frame/ms
+// USB bandwidth is 12Mbits/sec maximum theoretical. 
+#define MAX_PACKET_SIZE	256
 
 #define LE_WORD(x)		((x)&0xFF),((x)>>8)
 
 #define NUM_ISOC_FRAMES 4
 #define ISOC_INPUT_DATA_BUFFER_SIZE (1024 * NUM_ISOC_FRAMES)
-#define BYTES_PER_ISOC_FRAME 1023
+#define BYTES_PER_ISOC_FRAME MAX_PACKET_SIZE
 
 __attribute__ ((section (".usbdma"), aligned(4))) volatile U32* udcaHeadArray[32];
 __attribute__ ((section (".usbdma"), aligned(4))) volatile U32 inputDmaDescriptor[5];
@@ -78,7 +80,6 @@ U8 bDevStat = 0;
 #define	INT_VECT_NUM	0
 
 #define IRQ_MASK 0x00000080
-
 
 //static U8 abBulkBuf[64];
 static U8 abClassReqData[8];
@@ -152,11 +153,11 @@ static const U8 abDescriptors[] = {
 
 	0x14,
 	DESC_STRING,
-	'U', 0, 'S', 0, 'B', 0, 'S', 0, 'e', 0, 'r', 0, 'i', 0, 'a', 0, 'l', 0,
+	'U', 0, 'S', 0, 'B', 0, 'I', 0, 'S', 0, 'O', 0, 'C', 0, 'H', 0, 'R', 0,
 
 	0x12,
 	DESC_STRING,
-	'D', 0, 'E', 0, 'A', 0, 'D', 0, 'C', 0, '0', 0, 'D', 0, 'E', 0,
+	'P', 0, 'S', 0, 'A', 0, 'S', 0, 'T', 0, 'E', 0, 'S', 0, 'T', 0,
 
 // terminating zero
 	0
@@ -181,7 +182,7 @@ void initGPIO(void)  {
     // PINSEL2, bit 3(GPIO/TRACE) is 0 === GPIO.
     PINSEL2 &= 0xFFFFFFF7;
     // use P1.24:P1.18 as output
-    IO1DIR  |= 0x03FC0000;
+    IODIR1  |= 0x03FC0000;
 }
 
 
@@ -218,10 +219,12 @@ static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData)
  *    4 - Push it onto the IRQ stack as well.
  *
  *****************************************************************************/
+/*
 #define ISR_ENTRY() asm volatile(" sub   lr, lr,#4\n" \
                                  " stmfd sp!,{r0-r8,lr}\n" \
                                  " mrs   r1, spsr\n" \
                                  " stmfd sp!,{r1}")
+                                 */
 
 
 /******************************************************************************
@@ -240,10 +243,12 @@ static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData)
  *        the IRQ stack & return
  *
  *****************************************************************************/
+/*
 #define ISR_EXIT()  asm volatile(" ldmfd sp!,{r1}\n" \
                                  " msr   spsr_c,r1\n" \
                                  " ldmfd sp!,{r0-r8,pc}^")
 
+                                 */
 
 /**
 	Interrupt handler
@@ -252,6 +257,7 @@ static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData)
  */
 void USBIntHandler(void) 
 {
+    // do we really need this entry/exit stuff?
 	 ISR_ENTRY(); 
 	USBHwISR();
 	

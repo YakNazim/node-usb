@@ -129,6 +129,7 @@ int findDevice(char *destinationDevicePathLocation, int *deviceNumber) {
 }
 
 
+#define URB_BUFFERSIZE   256
 
 void writeURBInISOC(int fd, struct usbdevfs_urb *myInputURB, void *requestUniqueIDOut, const int structSize ) {
 	int ret,i;
@@ -138,14 +139,16 @@ void writeURBInISOC(int fd, struct usbdevfs_urb *myInputURB, void *requestUnique
     myInputURB->flags |= USBDEVFS_URB_ISO_ASAP;
     myInputURB->endpoint = ISOC_IN_ENDPOINT;
     myInputURB->buffer = isocInputDestinationBuffer;
-    myInputURB->buffer_length = 1023 * ISOC_INPUT_PACKET_COUNT;
+
+//    myInputURB->buffer_length = 1023 * ISOC_INPUT_PACKET_COUNT;
+    myInputURB->buffer_length = URB_BUFFERSIZE * ISOC_INPUT_PACKET_COUNT;
     myInputURB->actual_length = 0;
     myInputURB->usercontext = &requestUniqueIDOut;
     myInputURB->start_frame = isocInputStartFrame;
     
     myInputURB->number_of_packets = ISOC_INPUT_PACKET_COUNT;
     for(i = 0; i < ISOC_INPUT_PACKET_COUNT; i++ ) {
-    	myInputURB->iso_frame_desc[i].length = 1023;
+    	myInputURB->iso_frame_desc[i].length = URB_BUFFERSIZE;
     }
     
 	printf("-----------------------------------\n");

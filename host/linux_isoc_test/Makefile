@@ -1,14 +1,6 @@
 
-CC = gcc
 
-SOURCES=$(wildcard ./src/*.c)
-BINARYS=$(SOURCES:.c=)
-
-all: $(BINARYS) 
-	make -C multiEp
-
-$(BINARYS):
-	$(CC) -g $@.c -o $@
-
+all:
+	$(MAKE) -C src
 clean:
-	rm -f $(BINARYS) 
+	$(MAKE) -C src clean

@@ -26,7 +26,7 @@ LINKFILE	= lpc2148-rom.ld
 CSRCS	= halsys.c printf.c console.c
 OBJS 	= crt.o $(CSRCS:.c=.o)
 
-EXAMPLES = hid serial msc custom serial_dave serial_dave_isoc_out isoc_dma_sample isoc_in_dma_sample isoc_in_dma_sample_adc isoc_in_nondma_sample isoc_out_dma_sample isoc_out_nondma_sample multiEp isoc_inout_nondma_sample_sensor_prototype
+EXAMPLES = hid serial msc custom serial_dave serial_dave_isoc_out isoc_dma_sample isoc_in_dma_sample isoc_ep isoc_in_dma_sample_adc isoc_in_nondma_sample isoc_out_dma_sample isoc_out_nondma_sample multiEp isoc_inout_nondma_sample_sensor_prototype
 
 all: depend $(EXAMPLES)
 
@@ -36,6 +36,7 @@ isoc_out_dma_sample: $(OBJS) isoc_out_dma_sample.o armVIC.o $(LIBNAME).a
 isoc_out_nondma_sample: $(OBJS) isoc_out_nondma_sample.o armVIC.o $(LIBNAME).a
 isoc_in_dma_sample: $(OBJS) isoc_in_dma_sample.o armVIC.o $(LIBNAME).a
 isoc_in_dma_sample_adc: $(OBJS) isoc_in_dma_sample_adc.o adc.o armVIC.o $(LIBNAME).a
+isoc_ep: $(OBJS) isoc_ep.o adc.o armVIC.o $(LIBNAME).a
 isoc_inout_nondma_sample_sensor_prototype: $(OBJS) isoc_inout_nondma_sample_sensor_prototype.o adc.o armVIC.o $(LIBNAME).a
 isoc_in_nondma_sample: $(OBJS) isoc_in_nondma_sample.o armVIC.o $(LIBNAME).a
 isoc_dma_sample: $(OBJS) isoc_dma_sample.o armVIC.o $(LIBNAME).a
