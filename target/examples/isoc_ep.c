@@ -53,10 +53,10 @@
 #define ISOC_OUT_EP     0x06
 #define ISOC_IN_EP      0x83
 
-// using two endpoints, the maximum rate will be 4096000 bits/sec
+// using two endpoints, the maximum rate will be 6x10^6 bits/sec
 // based on 1 frame/ms
 // USB bandwidth is 12Mbits/sec maximum theoretical. 
-#define MAX_PACKET_SIZE	256
+#define MAX_PACKET_SIZE	375
 
 #define LE_WORD(x)		((x)&0xFF),((x)>>8)
 

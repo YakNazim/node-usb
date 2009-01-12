@@ -15,16 +15,16 @@
 #include <time.h>
 
 
-#define ISOC_BUFFERSIZE      256
+#define ISOC_BUFFERSIZE      375
 #define ISOC_OUT_ENDPOINT    0x06
-
-#define ISOC_IN_ENDPOINT  0x83
+#define ISOC_IN_ENDPOINT     0x83
 
 // hack of a var for output niceness
 int okprint=0;
 
-//Variables for ISOC output
 #define ISOC_OUTPUT_PACKET_COUNT 1
+#define ISOC_INPUT_PACKET_COUNT  1
+#define URB_ARR_COUNT            2
 
 struct   usbdevfs_urb             *myOutURB = NULL;
 char     isocOutputBuffer[ISOC_BUFFERSIZE];
@@ -32,11 +32,9 @@ int      isocOutputUniqueID                 = 1;
 uint32_t totalIsocOutBytesSent              = 0;
 
 //Variables for ISOC input
-#define URB_ARR_COUNT 2
 struct   usbdevfs_urb             *myInputURBArray[URB_ARR_COUNT];
 int      urbIdArray[URB_ARR_COUNT];
 
-#define ISOC_INPUT_PACKET_COUNT 1
 int isocInputStartFrame = 0;
 
 unsigned char isocInputDestinationBuffer[16024000];
