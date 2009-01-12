@@ -337,7 +337,7 @@ void USBFrameHandler(U16 wFrame)
 		
 		memcpy(inputIsocDataBuffer, &currentADCReadValue, 4);
 		resetDMATransfer(ISOC_IN_EP, inputDmaDescriptor, inputIsocFrameArray,
-						1, 4, &commonIsocFrameNumber, MAX_PACKET_SIZE, inputIsocDataBuffer);
+				1, 4, &commonIsocFrameNumber, MAX_PACKET_SIZE, inputIsocDataBuffer);
 		
 	}
 }

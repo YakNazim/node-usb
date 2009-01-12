@@ -20,6 +20,9 @@
 
 #define ISOC_IN_ENDPOINT  0x83
 
+// hack of a var for output niceness
+int okprint=0;
+
 //Variables for ISOC output
 #define ISOC_OUTPUT_PACKET_COUNT 1
 
@@ -182,7 +185,7 @@ void writeURBInISOC(int fd, struct usbdevfs_urb *myInputURB, void *requestUnique
 		//}
 		//printf("\n");
 	}
-    printf("\n");
+//    printf("\n");
     //sleep(1);
 }
 
@@ -199,23 +202,25 @@ int reapISOC_URB(int fd) {
 		//printf("Error %d while reaping URB: %s\n", errno, strerror(errno));
 	} else {
 		if (mostRecentReapedURBPtr == NULL) {
-			//printf("myURB2 is null...\n");
+//			printf("myURB2 is null...\n");
 		} else {
 			
 			if (mostRecentReapedURBPtr->endpoint == ISOC_IN_ENDPOINT ) {
 				isocInputStartFrame += mostRecentReapedURBPtr->number_of_packets;
-				totalIsocInBytesReceived += mostRecentReapedURBPtr->actual_length;
-				
-				printf("Input Length %d ",mostRecentReapedURBPtr->actual_length);
-				uint32_t val;
-				memcpy(&val, mostRecentReapedURBPtr->buffer, 4);
-				printf("ADC %X ", val);
-				
+                                totalIsocInBytesReceived += mostRecentReapedURBPtr->actual_length;
+                                uint32_t val;
+                                if(okprint) {
+                                    printf("Input Length %d\t ",mostRecentReapedURBPtr->actual_length);
+                                    memcpy(&val, mostRecentReapedURBPtr->buffer, 4);
+                                    printf("ADC %3X\t ", val);
+                                }
+
 				memcpy(&val, mostRecentReapedURBPtr->buffer + 4, 4);
-				printf("Button 1 %X ", val);
+//				printf("Button 1 %X\t\t ", val);
 				
 				memcpy(&val, mostRecentReapedURBPtr->buffer + 8, 4);
-				printf("Button 2 %X\n", val);
+//				printf("Button 2 %X\r", val);
+//				printf("Button 2 %X\t\t  ", val);
 				
 				
 				/*
@@ -259,17 +264,17 @@ void writeURBOutISOC(int fd, struct usbdevfs_urb *myOutURB, int urbStructSize,
     
     
     
-	printf("-----------------------------------\n");
-	printf("Writing URB to isoc out...\n");
+//	printf("-----------------------------------\n");
+//	printf("Writing URB to isoc out...\n");
 	
     ret = ioctl(fd, USBDEVFS_SUBMITURB, myOutURB);
     if (ret == -1) {
 		printf("Error %d while trying to write string to usb device, string is: %s\n", errno, strerror(errno));
 	}  else {
-		printf("Wrote string to device, ret = %d\n", ret);
+//		printf("Wrote string to device, ret = %d\n", ret);
 		totalIsocOutBytesSent += bufferLength;
 	}
-    printf("\n");
+ //   printf("\n");
 }
 
 
@@ -308,7 +313,6 @@ int main(void) {
     myOutURB = (struct usbdevfs_urb*) malloc(isocOutputURBStructSize);	
       
     
-    
     int isocInputURBStructSize = sizeof(struct usbdevfs_urb) + (ISOC_INPUT_PACKET_COUNT * sizeof(struct usbdevfs_iso_packet_desc));
 
     for(i = 0; i < URB_ARR_COUNT; i++ ) {
@@ -323,34 +327,37 @@ int main(void) {
 		printf("===============================================================================\n");
 		writeURBInISOC(fd, myInputURBArray[i], &urbIdArray[i], isocInputURBStructSize);
 	}
-	
-	for (q = 0; q < 100000; q++) {
-		
-		for (i = 0; i < URB_ARR_COUNT; i++) {
-			while (reapISOC_URB(fd) < 0) {
-			}
 
-			switch (mostRecentReapedURBPtr->endpoint) {
-			case ISOC_IN_ENDPOINT:
-				writeURBInISOC(fd, myInputURBArray[i], &urbIdArray[i], isocInputURBStructSize);
-				break;
-			}
-			time_t now = time(NULL);
 
-			uint8_t ledVal = now % 2;
-			if( ledVal != isocOutputBuffer[0] ) {
-				isocOutputBuffer[0] = ledVal;
-				writeURBOutISOC(fd, myOutURB, isocOutputURBStructSize, isocOutputBuffer, &isocOutputUniqueID, 1);
-			}
+        for (q = 0; q < 100000; q++) {
 
-			timeDelta = now - startTime;
-			if (timeDelta > 0) {
-				long isocInBytesPerSecond = totalIsocInBytesReceived / timeDelta;
-				printf("Bytes/second %d\n", isocInBytesPerSecond);
-			}
-		}
-	}
-	
+            for (i = 0; i < URB_ARR_COUNT; i++) {
+                while (reapISOC_URB(fd) < 0) {
+                }
+
+                switch (mostRecentReapedURBPtr->endpoint) {
+                    case ISOC_IN_ENDPOINT:
+                        writeURBInISOC(fd, myInputURBArray[i], &urbIdArray[i], isocInputURBStructSize);
+                        break;
+                }
+                time_t now = time(NULL);
+
+                uint8_t ledVal = now % 2;
+                if( ledVal != isocOutputBuffer[0] ) {
+                    isocOutputBuffer[0] = ledVal;
+                    writeURBOutISOC(fd, myOutURB, isocOutputURBStructSize, isocOutputBuffer, &isocOutputUniqueID, 1);
+                }
+
+                timeDelta = now - startTime;
+//                printf("Time delta is: %d\n",timeDelta);
+                if (timeDelta > 0) {
+                    okprint = 1;
+                    long isocInBytesPerSecond = totalIsocInBytesReceived / timeDelta;
+                    printf("Bytes/second %7d\r", isocInBytesPerSecond);
+                }
+            }
+        }
+
 	//Release the interface
 	printf("Releasing interface...\n");
     ret = ioctl(fd, USBDEVFS_RELEASEINTERFACE, &interfaceToClaim);
